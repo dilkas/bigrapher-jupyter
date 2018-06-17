@@ -17,7 +17,8 @@
                 lwt
                 lwt.unix
                 compiler-libs.common
-                compiler-libs.toplevel))))
+                compiler-libs.toplevel
+                jupyter.notebook))))
 
 (rule
  ((targets (compat.ml))

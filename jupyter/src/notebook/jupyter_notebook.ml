@@ -60,7 +60,8 @@ let clear_output ?ctx ?(wait = false) () =
   Unsafe.send_iopub ?ctx (IOPUB_CLEAR_OUTPUT { clear_wait = wait })
 
 let cell_context () =
-  match !Unsafe.context with
+  let context = Unsafe.get_context () in
+  match !context with
   | None -> failwith "JupyterNotebook has no execution context"
   | Some ctx -> ctx
 

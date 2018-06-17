@@ -54,8 +54,7 @@ let create_child_process
   =
   let context = ref None in
   let preinit () =
-    define_connection ~jupyterin ~jupyterout:ctrlout ~context ;
-    override_sys_params ()
+    define_connection ~jupyterin ~jupyterout:ctrlout ~context
   in
   Evaluation.init ?preload ~preinit ?init_file () ;
   let ctrlin = Unix.in_channel_of_descr ctrlin in

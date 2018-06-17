@@ -25,26 +25,29 @@
 type ctx = Jupyter.Shell.request Jupyter.Message.t
 
 (** Output channel to send messages to Jupyter or Web browser frontend. *)
-let jupyterout : out_channel =
+let get_jupyterout () :out_channel =
   Obj.obj (Toploop.getvalue "$jupyterout")
 
 (** Input channel to accept messages from Jupyter or Web browser frontend. *)
-let jupyterin : in_channel =
+let get_jupyterin () : in_channel =
   Obj.obj (Toploop.getvalue "$jupyterin")
 
 (** The current [execute_request] message from Jupyter. *)
-let context : ctx option ref =
+let get_context () : ctx option ref =
   Obj.obj (Toploop.getvalue "$jupyterctx")
 
 (** [recv ()] receives a message from Jupyter or Web browser frontend. *)
-let recv () : Jupyter.Message.request = Marshal.from_channel jupyterin
+let recv () : Jupyter.Message.request =
+  Marshal.from_channel (get_jupyterin ())
 
 (** [send data] sends [data] to Jupyter or Web browser frontend. *)
 let send (data : Jupyter.Message.reply) =
+  let jupyterout = get_jupyterout () in
   Marshal.to_channel jupyterout data [] ;
   flush jupyterout
 
 let send_iopub ?ctx content =
+  let context = get_context () in
   let parent = match ctx, !context with
     | Some ctx, _ -> ctx
     | None, Some ctx -> ctx

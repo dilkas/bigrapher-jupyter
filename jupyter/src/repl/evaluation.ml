@@ -102,14 +102,26 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
-(* TODO: delete file, error handling *)
+(* TODO: error handling, delete pictures, support multiple pictures *)
+(* FIXME: during the first run, the directory doesn't exist *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
   Buffer.clear buffer ;
+
+  (* write code to a file *)
   let filename = sprintf "[%d].big" count in
   let oc = open_out filename in
   Printf.fprintf oc "%s" code ;
   close_out oc ;
-  let channel = Unix.open_process_in ("bigrapher full " ^ filename) in
+
+  let dirname = Printf.sprintf "img-%d" count in
+  begin
+    try
+      Unix.mkdir dirname 0o600
+    with _ -> ()
+  end ;
+
+  let channel = Unix.open_process_in
+      (Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname filename) in
   begin
     try
       while true do
@@ -118,8 +130,13 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     with End_of_file -> ()
   end ;
   let status = Unix.close_process_in channel in
-  send (iopub_success ~count (Buffer.contents buffer)) ;
+
+  ignore (Jupyter_notebook.display_file ~base64:true "image/png" ("/home/paulius/examples/img-1/a0.svg")) ;
+
+  (* send the output *)
+  (* send (iopub_success ~count (Buffer.contents buffer)) ; *)
   Shell.SHELL_OK
+
   (*let rec loop status = function
     | [] -> status
     | phrase :: tl ->

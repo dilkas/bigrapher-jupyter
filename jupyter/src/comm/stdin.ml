@@ -26,7 +26,8 @@ open Jupyter
 open Jupyter.Stdin
 
 let send_stdin content =
-  let parent = match !Jupyter_notebook__Unsafe.context with
+  let context = Jupyter_notebook__Unsafe.get_context () in
+  let parent = match !context with
     | None -> failwith "Undefined current context"
     | Some ctx -> ctx in
   let reply = Message.create_next_stdin parent content in
