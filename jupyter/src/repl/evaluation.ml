@@ -102,9 +102,25 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
+(* TODO: delete file, error handling *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  let filename = sprintf "[%d]" count in
-  let rec loop status = function
+  Buffer.clear buffer ;
+  let filename = sprintf "[%d].big" count in
+  let oc = open_out filename in
+  Printf.fprintf oc "%s" code ;
+  close_out oc ;
+  let channel = Unix.open_process_in ("bigrapher full " ^ filename) in
+  begin
+    try
+      while true do
+        Buffer.add_channel buffer channel 1
+      done
+    with End_of_file -> ()
+  end ;
+  let status = Unix.close_process_in channel in
+  send (iopub_success ~count (Buffer.contents buffer)) ;
+  Shell.SHELL_OK
+  (*let rec loop status = function
     | [] -> status
     | phrase :: tl ->
       match eval_phrase ~filename phrase with
@@ -129,3 +145,4 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     let msg = Error.to_string_hum ~ctx_size:error_ctx_size exn in
     send (Iopub.error ~value:"compile_error" [msg]) ;
     Shell.SHELL_ERROR
+  *)
