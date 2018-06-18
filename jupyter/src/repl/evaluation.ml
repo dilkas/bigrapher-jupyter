@@ -102,9 +102,50 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
+let display_rule partial_filename =
+  ignore (Jupyter_notebook.display "text/html" (Printf.sprintf "
+<table>
+    <tr>
+        <td><img src=\"%s_lhs.svg\"></td>
+        <td style=\"padding-left: 25px; padding-right: 25px;\">
+            <h1>&rarr;</h1>
+        </td>
+        <td><img src=\"%s_rhs.svg\"></td>
+    </tr>
+</table>
+" partial_filename partial_filename))
+
+let display_images images =
+  let filename_fits_pattern pattern filename =
+    let filename_length = String.length filename in
+    let pattern_length = String.length pattern in
+    filename_length > pattern_length &&
+    String.sub filename (filename_length - pattern_length)
+      pattern_length = pattern
+  in
+
+  (* start with images that are not reaction rules *)
+  let others = List.filter (fun filename ->
+      not (filename_fits_pattern "_lhs.svg" filename ||
+           filename_fits_pattern "_rhs.svg" filename)) images in
+  List.iter (fun filename ->
+      ignore (Jupyter_notebook.display_file "image/svg+xml" filename)) others ;
+
+  (* and then display the reaction rules *)
+  let rules = List.filter (filename_fits_pattern "_lhs.svg") images in
+  let cropped_rules = List.map (fun filename ->
+      let length = String.length filename in
+      String.sub filename 0 (length - 8)
+    ) rules in
+  List.iter display_rule cropped_rules
+
 (* TODO: error handling *)
 (* TODO: save files somewhere else? *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
+  let files_in_dir dirname =
+    Array.to_list (Array.map (Filename.concat dirname) (Sys.readdir dirname))
+  in
+
   Buffer.clear buffer ;
 
   (* write code to a file *)
@@ -114,7 +155,11 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   close_out oc ;
 
   let dirname = Printf.sprintf "img-%d" count in
-  Unix.mkdir dirname 0o700 ;
+  begin
+    try
+      Unix.mkdir dirname 0o700
+    with _ -> List.iter Sys.remove (files_in_dir dirname)
+  end ;
 
   (* run bigrapher *)
   let channel = Unix.open_process_in
@@ -130,14 +175,9 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
 
   (* output both text and images *)
   send (iopub_success ~count (Buffer.contents buffer)) ;
-  let images = Array.map (Filename.concat dirname) (Sys.readdir dirname) in
-  Array.iter (fun image ->
-      ignore (Jupyter_notebook.display_file "image/svg+xml" image)) images ;
+  display_images (files_in_dir dirname) ;
 
-  (* clean up *)
   Sys.remove filename ;
-  Array.iter Sys.remove images ;
-  Unix.rmdir dirname ;
 
   Shell.SHELL_OK
 
