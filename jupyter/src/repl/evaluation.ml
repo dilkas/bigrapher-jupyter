@@ -102,7 +102,8 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
-let display_rule partial_filename =
+let display_rule send count partial_filename =
+  send (iopub_success ~count (Filename.basename partial_filename)) ;
   ignore (Jupyter_notebook.display "text/html" (Printf.sprintf "
 <table>
     <tr>
@@ -115,7 +116,7 @@ let display_rule partial_filename =
 </table>
 " partial_filename partial_filename))
 
-let display_images images =
+let display_images send count images =
   let filename_fits_pattern pattern filename =
     let filename_length = String.length filename in
     let pattern_length = String.length pattern in
@@ -129,6 +130,8 @@ let display_images images =
       not (filename_fits_pattern "_lhs.svg" filename ||
            filename_fits_pattern "_rhs.svg" filename)) images in
   List.iter (fun filename ->
+      send (iopub_success ~count (Filename.chop_suffix
+                                    (Filename.basename filename) ".svg")) ;
       ignore (Jupyter_notebook.display_file "image/svg+xml" filename)) others ;
 
   (* and then display the reaction rules *)
@@ -137,7 +140,7 @@ let display_images images =
       let length = String.length filename in
       String.sub filename 0 (length - 8)
     ) rules in
-  List.iter display_rule cropped_rules
+  List.iter (display_rule send count) cropped_rules
 
 (* TODO: error handling *)
 (* TODO: save files somewhere else? *)
@@ -175,7 +178,7 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
 
   (* output both text and images *)
   send (iopub_success ~count (Buffer.contents buffer)) ;
-  display_images (files_in_dir dirname) ;
+  display_images send count (files_in_dir dirname) ;
 
   Sys.remove filename ;
 
