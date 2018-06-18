@@ -102,9 +102,11 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
-let display_rule send count partial_filename =
-  send (iopub_success ~count (Filename.basename partial_filename)) ;
-  ignore (Jupyter_notebook.display "text/html" (Printf.sprintf "
+let display_rules send count directory names =
+  List.iter (fun name ->
+      send (iopub_success ~count name) ;
+      let partial_filename = Filename.concat directory name in
+      ignore (Jupyter_notebook.display "text/html" (Printf.sprintf "
 <table>
     <tr>
         <td><img src=\"%s_lhs.svg\"></td>
@@ -115,48 +117,36 @@ let display_rule send count partial_filename =
     </tr>
 </table>
 " partial_filename partial_filename))
+    ) names
 
-let display_images send count images =
-  let filename_fits_pattern pattern filename =
-    let filename_length = String.length filename in
-    let pattern_length = String.length pattern in
-    filename_length > pattern_length &&
-    String.sub filename (filename_length - pattern_length)
-      pattern_length = pattern
-  in
+let display_bigraphs send count directory names =
+  List.iter (fun name ->
+      send (iopub_success ~count name) ;
+      ignore (Jupyter_notebook.display_file "image/svg+xml"
+                ((Filename.concat directory name) ^ ".svg"))
+    ) names
 
-  (* start with images that are not reaction rules *)
-  let others = List.filter (fun filename ->
-      not (filename_fits_pattern "_lhs.svg" filename ||
-           filename_fits_pattern "_rhs.svg" filename)) images in
-  List.iter (fun filename ->
-      send (iopub_success ~count (Filename.chop_suffix
-                                    (Filename.basename filename) ".svg")) ;
-      ignore (Jupyter_notebook.display_file "image/svg+xml" filename)) others ;
+let files_in_dir dirname =
+  Array.to_list (Array.map (Filename.concat dirname) (Sys.readdir dirname))
 
-  (* and then display the reaction rules *)
-  let rules = List.filter (filename_fits_pattern "_lhs.svg") images in
-  let cropped_rules = List.map (fun filename ->
-      let length = String.length filename in
-      String.sub filename 0 (length - 8)
-    ) rules in
-  List.iter (display_rule send count) cropped_rules
+let has_main_block lines =
+  List.exists (fun line -> String.length line > 5 &&
+                           Str.first_chars line 5 = "begin") lines
+
+let list_defined_entities keyword lines =
+  let keyword_length = String.length keyword in
+  let relevant_lines = List.filter (fun line ->
+      String.length line > keyword_length &&
+      Str.first_chars line keyword_length = keyword) lines in
+  List.map (fun line ->
+      let end_of_name = String.index_from line (keyword_length + 1) ' ' in
+      String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
+    ) relevant_lines
 
 (* TODO: error handling *)
 (* TODO: save files somewhere else? *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  let files_in_dir dirname =
-    Array.to_list (Array.map (Filename.concat dirname) (Sys.readdir dirname))
-  in
-
-  Buffer.clear buffer ;
-
-  (* write code to a file *)
-  let filename = sprintf "[%d].big" count in
-  let oc = open_out filename in
-  Printf.fprintf oc "%s" code ;
-  close_out oc ;
-
+  (* manage the image directory *)
   let dirname = Printf.sprintf "img-%d" count in
   begin
     try
@@ -164,24 +154,36 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     with _ -> List.iter Sys.remove (files_in_dir dirname)
   end ;
 
+  let lines = String.split_on_char '\n' code in
+  let full_model = has_main_block lines in
+  Buffer.add_string buffer code ;
+
+  (* write code to a file *)
+  let filename = sprintf "[%d].big" count in
+  let oc = open_out filename in
+  Printf.fprintf oc "%s" (Buffer.contents buffer) ;
+  close_out oc ;
+
   (* run bigrapher *)
   let channel = Unix.open_process_in
       (Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname filename) in
+  let output_buffer = Buffer.create 256 in
   begin
     try
       while true do
-        Buffer.add_channel buffer channel 1
+        Buffer.add_channel output_buffer channel 1
       done
     with End_of_file -> ()
   end ;
   let status = Unix.close_process_in channel in
 
   (* output both text and images *)
-  send (iopub_success ~count (Buffer.contents buffer)) ;
-  display_images send count (files_in_dir dirname) ;
+  send (iopub_success ~count (Buffer.contents output_buffer)) ;
+  display_bigraphs send count dirname (list_defined_entities "big" lines) ;
+  display_rules send count dirname (list_defined_entities "react" lines) ;
 
+  if full_model then Buffer.clear buffer ;
   Sys.remove filename ;
-
   Shell.SHELL_OK
 
   (*let rec loop status = function
