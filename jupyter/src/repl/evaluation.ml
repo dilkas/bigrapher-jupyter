@@ -102,8 +102,8 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
-(* TODO: error handling, delete pictures, support multiple pictures *)
-(* FIXME: during the first run, the directory doesn't exist *)
+(* TODO: error handling *)
+(* TODO: save files somewhere else? *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
   Buffer.clear buffer ;
 
@@ -114,12 +114,9 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   close_out oc ;
 
   let dirname = Printf.sprintf "img-%d" count in
-  begin
-    try
-      Unix.mkdir dirname 0o600
-    with _ -> ()
-  end ;
+  Unix.mkdir dirname 0o700 ;
 
+  (* run bigrapher *)
   let channel = Unix.open_process_in
       (Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname filename) in
   begin
@@ -131,10 +128,17 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   end ;
   let status = Unix.close_process_in channel in
 
-  ignore (Jupyter_notebook.display_file ~base64:true "image/png" ("/home/paulius/examples/img-1/a0.svg")) ;
+  (* output both text and images *)
+  send (iopub_success ~count (Buffer.contents buffer)) ;
+  let images = Array.map (Filename.concat dirname) (Sys.readdir dirname) in
+  Array.iter (fun image ->
+      ignore (Jupyter_notebook.display_file "image/svg+xml" image)) images ;
 
-  (* send the output *)
-  (* send (iopub_success ~count (Buffer.contents buffer)) ; *)
+  (* clean up *)
+  Sys.remove filename ;
+  Array.iter Sys.remove images ;
+  Unix.rmdir dirname ;
+
   Shell.SHELL_OK
 
   (*let rec loop status = function
