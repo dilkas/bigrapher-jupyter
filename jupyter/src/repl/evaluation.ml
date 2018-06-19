@@ -133,18 +133,71 @@ let has_main_block lines =
   List.exists (fun line -> String.length line > 5 &&
                            Str.first_chars line 5 = "begin") lines
 
+let extract_name keyword_length line =
+  let end_of_name = String.index_from line (keyword_length + 1) ' ' in
+  String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
+
 let list_defined_entities keyword lines =
   let keyword_length = String.length keyword in
   let relevant_lines = List.filter (fun line ->
       String.length line > keyword_length &&
       Str.first_chars line keyword_length = keyword) lines in
-  List.map (fun line ->
-      let end_of_name = String.index_from line (keyword_length + 1) ' ' in
-      String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
-    ) relevant_lines
+  List.map (extract_name keyword_length) relevant_lines
 
-(* TODO: error handling *)
-(* TODO: save files somewhere else? *)
+(* if we find a 'react' followed by a name not in 'rules', delete everything
+   until we reach a semicolon *)
+let rec remove_unnecessary_rules rules text =
+  let re = Str.regexp_string "react" in
+  try
+    let i = Str.search_forward re text 0 in
+    if i = 0 || text.[i - 1] = '\n' then
+      let name = extract_name (i + 5) text in
+      (* if the name of the reaction rule is in our "to keep" list, then
+         everything below it will be as well *)
+      if List.mem name rules then text
+      else
+        let end_of_definition = String.index_from text i ';' in
+        let remaining_text = Str.string_after text (end_of_definition + 1) in
+        let text_before_rule = Str.string_before text i in
+        text_before_rule ^ remove_unnecessary_rules rules remaining_text
+    else
+      let text_before_react = Str.string_before text i in
+      let text_after_react = Str.string_after text (i + 5) in
+      text_before_react ^ remove_unnecessary_rules rules text_after_react
+  with Not_found -> text
+
+let rec generate_string_not_in list candidate =
+  if candidate = "" || List.mem candidate list then
+    generate_string_not_in list
+      (candidate ^ (String.make 1
+                      (char_of_int (int_of_char 'a' + Random.int 26))))
+  else candidate
+
+(* adds the missing parts to make a complete model *)
+let complete_model bigraphs rules model =
+  let taken_names = bigraphs @ rules in
+  let random_big = generate_string_not_in taken_names "" in
+  let random_ctrl = generate_string_not_in taken_names "B" in
+  let random_react = generate_string_not_in (random_big :: taken_names) "" in
+  let model = remove_unnecessary_rules rules model in
+  let begin_end_block = Printf.sprintf
+      "\n
+ctrl %s = 0;
+big %s = %s.1;
+react %s = %s --> %s;
+begin brs
+  init %s;
+  rules = [{%s}];
+  preds = {%s};
+end\n"
+      random_ctrl random_big random_ctrl random_react random_big random_big
+      random_big random_react random_big in
+  model ^ begin_end_block
+
+(* TODO: delete created files *)
+(* TODO: don't everything after running a complete model *)
+(* TODO: split into multiple functions *)
+(* TODO: more comments *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
   (* manage the image directory *)
   let dirname = Printf.sprintf "img-%d" count in
@@ -156,12 +209,18 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
 
   let lines = String.split_on_char '\n' code in
   let full_model = has_main_block lines in
+  let bigraphs = list_defined_entities "big" lines in
+  let rules = list_defined_entities "react" lines in
   Buffer.add_string buffer code ;
+  Buffer.add_char buffer '\n' ;
+
+  let contents = if full_model then Buffer.contents buffer
+    else complete_model bigraphs rules (Buffer.contents buffer) in
 
   (* write code to a file *)
   let filename = sprintf "[%d].big" count in
   let oc = open_out filename in
-  Printf.fprintf oc "%s" (Buffer.contents buffer) ;
+  Printf.fprintf oc "%s" contents ;
   close_out oc ;
 
   (* run bigrapher *)
@@ -175,16 +234,21 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
       done
     with End_of_file -> ()
   end ;
-  let status = Unix.close_process_in channel in
 
-  (* output both text and images *)
-  send (iopub_success ~count (Buffer.contents output_buffer)) ;
-  display_bigraphs send count dirname (list_defined_entities "big" lines) ;
-  display_rules send count dirname (list_defined_entities "react" lines) ;
+  (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
-  if full_model then Buffer.clear buffer ;
-  Sys.remove filename ;
-  Shell.SHELL_OK
+  match Unix.close_process_in channel with
+  | Unix.WEXITED 0 ->
+    display_bigraphs send count dirname bigraphs ;
+    display_rules send count dirname rules ;
+    if full_model then Buffer.clear buffer ;
+    Sys.remove filename ;
+    Shell.SHELL_OK
+  | _ ->
+    (* -1 because we added a newline *)
+    Buffer.truncate buffer (Buffer.length buffer - String.length code - 1) ;
+    Sys.remove filename ;
+    Shell.SHELL_ERROR
 
   (*let rec loop status = function
     | [] -> status
