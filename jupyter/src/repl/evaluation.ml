@@ -102,10 +102,12 @@ let eval_phrase ~filename phrase =
   Buffer.clear buffer ;
   (is_ok, message)
 
-let display_rules send count directory names =
+(* Display each reaction rule in names_of_rules by printing its name and
+   creating an HTML table, connecting both diagrams *)
+let display_reaction_rules send count dirname names_of_rules =
   List.iter (fun name ->
       send (iopub_success ~count name) ;
-      let partial_filename = Filename.concat directory name in
+      let partial_filename = Filename.concat dirname name in
       ignore (Jupyter_notebook.display "text/html" (Printf.sprintf "
 <table>
     <tr>
@@ -117,26 +119,35 @@ let display_rules send count directory names =
     </tr>
 </table>
 " partial_filename partial_filename))
-    ) names
+    ) names_of_rules
 
-let display_bigraphs send count directory names =
+(* Display bigraphs listed in names *)
+let display_bigraphs send count dirname names =
   List.iter (fun name ->
       send (iopub_success ~count name) ;
       ignore (Jupyter_notebook.display_file "image/svg+xml"
-                ((Filename.concat directory name) ^ ".svg"))
+                ((Filename.concat dirname name) ^ ".svg"))
     ) names
 
+(* Return a list of files in a directory (with their relative paths from the
+   current directory) *)
 let files_in_dir dirname =
-  Array.to_list (Array.map (Filename.concat dirname) (Sys.readdir dirname))
+  let files = Sys.readdir dirname in
+  let full_filenames = Array.map (Filename.concat dirname) files in
+  Array.to_list full_filenames
 
+(* Does this list of lines contain a begin-end block? *)
 let has_main_block lines =
   List.exists (fun line -> String.length line > 5 &&
                            Str.first_chars line 5 = "begin") lines
 
+(* Return the second word in the string, where keyword_length denotes the
+   length of the first word *)
 let extract_name keyword_length line =
   let end_of_name = String.index_from line (keyword_length + 1) ' ' in
   String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
 
+(* For every row starting with the given keyword, return the second word *)
 let list_defined_entities keyword lines =
   let keyword_length = String.length keyword in
   let relevant_lines = List.filter (fun line ->
@@ -144,42 +155,47 @@ let list_defined_entities keyword lines =
       Str.first_chars line keyword_length = keyword) lines in
   List.map (extract_name keyword_length) relevant_lines
 
-(* if we find a 'react' followed by a name not in 'rules', delete everything
-   until we reach a semicolon *)
-let rec remove_unnecessary_rules rules text =
-  let re = Str.regexp_string "react" in
+(* If we find a line starting with 'react' with the name not in rules_to_keep,
+   remove everything up to the next semicolon *)
+let rec remove_reaction_rules_from_previous_cells rules_to_keep text =
+  let regular_expression = Str.regexp_string "react" in
   try
-    let i = Str.search_forward re text 0 in
+    let i = Str.search_forward regular_expression text 0 in
     if i = 0 || text.[i - 1] = '\n' then
       let name = extract_name (i + 5) text in
-      (* if the name of the reaction rule is in our "to keep" list, then
+      (* if the name of the reaction rule is in our rules_to_keep list, then
          everything below it will be as well *)
-      if List.mem name rules then text
+      if List.mem name rules_to_keep then text
       else
         let end_of_definition = String.index_from text i ';' in
         let remaining_text = Str.string_after text (end_of_definition + 1) in
-        let text_before_rule = Str.string_before text i in
-        text_before_rule ^ remove_unnecessary_rules rules remaining_text
+        let text_before_reaction_rule = Str.string_before text i in
+        text_before_reaction_rule ^
+        remove_reaction_rules_from_previous_cells rules_to_keep remaining_text
     else
       let text_before_react = Str.string_before text i in
       let text_after_react = Str.string_after text (i + 5) in
-      text_before_react ^ remove_unnecessary_rules rules text_after_react
+      text_before_react ^
+      remove_reaction_rules_from_previous_cells rules_to_keep text_after_react
   with Not_found -> text
 
+(* Generates a random (lowercase) string not in the given list. Candidate is
+   the initial attempt, can be empty. *)
 let rec generate_string_not_in list candidate =
   if candidate = "" || List.mem candidate list then
-    generate_string_not_in list
-      (candidate ^ (String.make 1
-                      (char_of_int (int_of_char 'a' + Random.int 26))))
+    let random_letter_int = int_of_char 'a' + Random.int 26 in
+    let random_letter = char_of_int random_letter_int in
+    let random_letter_string = String.make 1 random_letter in
+    let new_candidate = candidate ^ random_letter_string in
+    generate_string_not_in list new_candidate
   else candidate
 
-(* adds the missing parts to make a complete model *)
+(* Add a default begin-end block to an incomplete model *)
 let complete_model bigraphs rules model =
   let taken_names = bigraphs @ rules in
   let random_big = generate_string_not_in taken_names "" in
   let random_ctrl = generate_string_not_in taken_names "B" in
   let random_react = generate_string_not_in (random_big :: taken_names) "" in
-  let model = remove_unnecessary_rules rules model in
   let begin_end_block = Printf.sprintf
       "\n
 ctrl %s = 0;
@@ -194,12 +210,39 @@ end\n"
       random_big random_react random_big in
   model ^ begin_end_block
 
+(* Run bigrapher on the given model, saving generated diagrams in
+   diagram_directory *)
+let run_bigrapher diagram_directory model_filename =
+  let command= Printf.sprintf "bigrapher validate -d %s -f svg %s"
+      diagram_directory model_filename in
+  let channel = Unix.open_process_in command in
+  let output_buffer = Buffer.create 256 in
+  begin
+    try
+      while true do
+        Buffer.add_channel output_buffer channel 1
+      done
+    with End_of_file -> ()
+  end ;
+  channel, output_buffer
+
+(* Extract code from the buffer, modifying it as necessary *)
+let code_of_buffer model_is_full bigraphs reaction_rules =
+  if model_is_full then Buffer.contents buffer
+  else
+    let all_code = Buffer.contents buffer in
+    let filtered_code = remove_reaction_rules_from_previous_cells reaction_rules
+        all_code in
+    complete_model bigraphs reaction_rules filtered_code
+
 (* TODO: delete created files *)
-(* TODO: don't everything after running a complete model *)
-(* TODO: split into multiple functions *)
-(* TODO: more comments *)
+(* TODO: don't delete everything after running a complete model *)
+(* TODO: lint? *)
+(* Evaluate a given code block, sending/displaying any results and returning a
+   success/failure status. Send - the function used for sending textual output.
+   Count - the number of the cell according to the run order (starting from 0). *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  (* manage the image directory *)
+  (* manage the image directory TODO: separate function *)
   let dirname = Printf.sprintf "img-%d" count in
   begin
     try
@@ -210,12 +253,11 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   let lines = String.split_on_char '\n' code in
   let full_model = has_main_block lines in
   let bigraphs = list_defined_entities "big" lines in
-  let rules = list_defined_entities "react" lines in
+  let reaction_rules = list_defined_entities "react" lines in
   Buffer.add_string buffer code ;
   Buffer.add_char buffer '\n' ;
 
-  let contents = if full_model then Buffer.contents buffer
-    else complete_model bigraphs rules (Buffer.contents buffer) in
+  let contents = code_of_buffer full_model bigraphs reaction_rules in
 
   (* write code to a file *)
   let filename = sprintf "[%d].big" count in
@@ -223,24 +265,13 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   Printf.fprintf oc "%s" contents ;
   close_out oc ;
 
-  (* run bigrapher *)
-  let channel = Unix.open_process_in
-      (Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname filename) in
-  let output_buffer = Buffer.create 256 in
-  begin
-    try
-      while true do
-        Buffer.add_channel output_buffer channel 1
-      done
-    with End_of_file -> ()
-  end ;
-
+  let channel, output_buffer = run_bigrapher dirname filename in
   (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
   match Unix.close_process_in channel with
   | Unix.WEXITED 0 ->
     display_bigraphs send count dirname bigraphs ;
-    display_rules send count dirname rules ;
+    display_reaction_rules send count dirname reaction_rules ;
     if full_model then Buffer.clear buffer ;
     Sys.remove filename ;
     Shell.SHELL_OK
