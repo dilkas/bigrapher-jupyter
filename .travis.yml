@@ -64,6 +64,7 @@ script:
   - opam lint jupyter.opam
   - opam lint jupyter-archimedes.opam
   # installation
+  - jbuilder external-lib-deps --missing -p jupyter @install
   - opam pin add jupyter . -y --verbose
   - opam pin add jupyter-archimedes . -y --verbose
   - opam info jupyter # package is installed.
