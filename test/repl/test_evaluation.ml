@@ -42,7 +42,16 @@ let eval ?(count = 0) code =
   let status = eval ~send ~count code in
   (status, List.rev !replies)
 
-let test__simple_phrase ctxt =
+let test__constant_definitions ctxt =
+  let status, actual = eval
+      "float tau = 20.3;
+float t_min = 15. + tau;
+int size = 132;" in
+  let expected = [] in
+  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+(*let test__simple_phrase ctxt =
   let status, actual = eval "let x = (4 + 1) * 3" in
   let expected = [iopub_success ~count:0 "val x : int = 15\n"] in
   assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
@@ -167,23 +176,25 @@ let test__camlp4 ctxt =
   let status, actual = eval "[< '1 ; '2 >]" in
   let expected = [iopub_success ~count:0 "- : int Stream.t = <abstr>\n"] in
   assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
-  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual*)
 
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
-      "simple_phrase" >:: test__simple_phrase;
-      "multiple_phrases" >:: test__multiple_phrases;
-      "directive" >:: test__directive;
-      "external_command" >:: test__external_command;
-      "syntax_error" >:: test__syntax_error;
-      "unbound_value" >:: test__unbound_value;
-      "type_error" >:: test__type_error;
-      "long_error_message" >:: test__long_error_message;
-      "exception" >:: test__exception;
-      "unknown_directive" >:: test__unknown_directive;
-      "ppx" >:: test__ppx;
-      "camlp4" >:: test__camlp4;
+      (*
+-      "simple_phrase" >:: test__simple_phrase;
+-      "multiple_phrases" >:: test__multiple_phrases;
+-      "directive" >:: test__directive;
+-      "external_command" >:: test__external_command;
+-      "syntax_error" >:: test__syntax_error;
+-      "unbound_value" >:: test__unbound_value;
+-      "type_error" >:: test__type_error;
+-      "long_error_message" >:: test__long_error_message;
+-      "exception" >:: test__exception;
+-      "unknown_directive" >:: test__unknown_directive;
+-      "ppx" >:: test__ppx;
+-      "camlp4" >:: test__camlp4; *)
+      "constant definitions" >:: test__constant_definitions;
     ]
   ]
 

@@ -33,6 +33,8 @@ type reply =
   | Stdin of Jupyter.Stdin.reply
   | Shell of Jupyter.Shell.reply
 
+let eval = eval ~ocaml_mode:true
+
 let pp_reply ppf reply =
   begin
     match reply with
@@ -91,6 +93,27 @@ let test__sys_interactive ctxt =
     Shell (execute_reply ~count:0 SHELL_OK);
   ] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+(*
+let test__simple_model ctxt =
+  let actual = eval
+      "ctrl Foo = 0;
+big foo = Foo.1;
+react bar = foo --> foo;
+begin brs
+  init foo;
+  rules = [{bar}];
+  preds = {foo};
+end" |> map_content in
+  let actual1 = List.nth actual 0 in
+  let actual2 = List.nth actual 2 in
+  let actual3 = List.nth actual 4 in
+  let expected1 = Iopub (iopub_success ~count:0 "foo") in
+  let expected2 = Iopub (iopub_success ~count:0 "bar") in
+  let expected3 = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3*)
 
 let suite =
   "Process" >::: [

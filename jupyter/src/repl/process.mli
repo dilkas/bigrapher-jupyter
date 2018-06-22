@@ -24,6 +24,9 @@
 
 type t
 
+(** Sets the interpretation mode to OCaml rather than BigraphER. *)
+val set_ocaml_mode : bool -> unit
+
 (** Creates an OCaml REPL process.
 
     @param preload         a list of pre-loaded [.cma] files.

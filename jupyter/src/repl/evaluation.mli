@@ -47,3 +47,8 @@ val eval :
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
+
+val eval_ocaml :
+  ?error_ctx_size:int ->
+  send:(Jupyter.Iopub.reply -> unit) ->
+  count:int -> string -> Jupyter.Shell.status

@@ -69,10 +69,12 @@ let is_topfind_log = function
   | _ -> false
 
 let eval
+    ?(ocaml_mode = false)
     ?(ctx = default_ctx)
     ?(post_exec = lwt_ignore)
     ?init_file ?(count = 0) code
   =
+  Process.set_ocaml_mode ocaml_mode ;
   let repl = Process.create ?init_file () in
   let strm = Process.stream repl in
   Lwt_main.run begin

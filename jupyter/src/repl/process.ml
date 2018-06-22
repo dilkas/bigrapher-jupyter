@@ -33,6 +33,12 @@ type request =
 
 let flags = [] (* marshal flags *)
 
+let evaluation_eval = ref Evaluation.eval_ocaml
+
+let set_ocaml_mode = function
+  | true -> evaluation_eval := Evaluation.eval_ocaml
+  | false -> evaluation_eval := Evaluation.eval
+
 (** {2 Child process} *)
 
 let define_connection ~jupyterin ~jupyterout ~context =
@@ -45,7 +51,7 @@ let override_sys_params () =
   (* [Sys.interactive] should be [true] for preventing from loading
      ocamltoplevel.cma inside the OCaml toploop (Issue#78).
      See https://github.com/ocaml/ocaml/blob/4.05.0/toplevel/toploop.ml#L467-L469 *)
-  Evaluation.eval ~count:0 ~send:ignore "Sys.interactive := true"
+  !evaluation_eval ~count:0 ~send:ignore "Sys.interactive := true"
   |> ignore
 
 let create_child_process
@@ -54,7 +60,8 @@ let create_child_process
   =
   let context = ref None in
   let preinit () =
-    define_connection ~jupyterin ~jupyterout:ctrlout ~context
+    define_connection ~jupyterin ~jupyterout:ctrlout ~context ;
+    if !evaluation_eval == Evaluation.eval_ocaml then override_sys_params ()
   in
   Evaluation.init ?preload ~preinit ?init_file () ;
   let ctrlin = Unix.in_channel_of_descr ctrlin in
@@ -72,7 +79,7 @@ let create_child_process
       | REPL_QUIT -> exit 0 (* control channel is closed. *)
       | REPL_CODE (ctx', count, code) ->
         context := Some ctx' ;
-        Evaluation.eval ?error_ctx_size ~count ~send:(send_iopub ~ctx:ctx') code
+        !evaluation_eval ?error_ctx_size ~count ~send:(send_iopub ~ctx:ctx') code
         |> Shell.execute_reply ~count
         |> send_shell ~ctx:ctx' ;
         main_loop (Some (ctx', count))

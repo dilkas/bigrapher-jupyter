@@ -93,15 +93,6 @@ let iopub_interrupt () =
 
 (** {2 Execution} *)
 
-let eval_phrase ~filename phrase =
-  Compat.reset_fatal_warnings () ;
-  let phrase' = Compat.preprocess_phrase ~filename phrase in (* apply PPX *)
-  Env.reset_cache_toplevel () ;
-  let is_ok = Toploop.execute_phrase true ppf phrase' in
-  let message = Buffer.contents buffer in
-  Buffer.clear buffer ;
-  (is_ok, message)
-
 (* Display each reaction rule in names_of_rules by printing its name and
    creating an HTML table, connecting both diagrams *)
 let display_reaction_rules send count dirname names_of_rules =
@@ -261,6 +252,10 @@ let write_code_to_file count contents =
   close_out channel ;
   filename
 
+let safe_remove filename =
+  try Sys.remove filename
+  with _ -> ()
+
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
@@ -284,14 +279,25 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     display_bigraphs send count dirname bigraphs ;
     display_reaction_rules send count dirname reaction_rules ;
     if model_is_full then truncate_buffer code ;
-    Sys.remove filename ;
+    safe_remove filename ;
     Shell.SHELL_OK
   | _ ->
     truncate_buffer code ;
-    Sys.remove filename ;
+    safe_remove filename ;
     Shell.SHELL_ERROR
 
-  (*let rec loop status = function
+let eval_phrase ~filename phrase =
+  Compat.reset_fatal_warnings () ;
+  let phrase' = Compat.preprocess_phrase ~filename phrase in (* apply PPX *)
+  Env.reset_cache_toplevel () ;
+  let is_ok = Toploop.execute_phrase true ppf phrase' in
+  let message = Buffer.contents buffer in
+  Buffer.clear buffer ;
+  (is_ok, message)
+
+let eval_ocaml ?(error_ctx_size = 1) ~send ~count code =
+  let filename = sprintf "[%d]" count in
+  let rec loop status = function
     | [] -> status
     | phrase :: tl ->
       match eval_phrase ~filename phrase with
@@ -316,4 +322,3 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     let msg = Error.to_string_hum ~ctx_size:error_ctx_size exn in
     send (Iopub.error ~value:"compile_error" [msg]) ;
     Shell.SHELL_ERROR
-  *)
