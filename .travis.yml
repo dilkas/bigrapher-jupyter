@@ -56,8 +56,7 @@ before_script:
   - pip install ipython==5.4.1 jupyter
   - curl -L https://gist.githubusercontent.com/akabe/24979afbf95c4cf4393f589cda997e1b/raw/install_opam.sh | sh -xeu
   - eval $(opam config env)
-  - opam install -y ocamlfind 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core
-  - opam remove jupyter
+  - opam install -y ocamlfind 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core ocaml-migrate-parsetree
 
 script:
   # lint and code-format checks:
@@ -78,8 +77,6 @@ script:
   # integration tests
   - echo '#use "topfind" ;;' > $HOME/.ocamlinit
   - jupyter kernelspec install --user --name ocaml-jupyter "$(opam config var share)/jupyter"
-  - jbuilder build test/integration/runtest.exe
-  - ./_build/default/test/integration/runtest.exe test/integration/suite/*.ml
   # uninstallation
   - opam remove jupyter jupyter-archimedes --verbose
   - (! ocamlfind query jupyter)
