@@ -1,4 +1,5 @@
 # jbuilder generated files
 _build/
+_coverage/
 .merlin
 *.install

@@ -33,7 +33,7 @@ type request =
 
 let flags = [] (* marshal flags *)
 
-let evaluation_eval = ref Evaluation.eval_ocaml
+let evaluation_eval = ref Evaluation.eval
 
 let set_ocaml_mode = function
   | true -> evaluation_eval := Evaluation.eval_ocaml

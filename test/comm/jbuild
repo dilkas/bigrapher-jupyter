@@ -4,6 +4,7 @@
  ((names      (test_manager))
   (modes      (byte))
   (preprocess (pps (lwt.ppx ppx_deriving.show)))
+  (preprocess (pps (bisect_ppx -conditional)))
   (libraries  (jupyter
                jupyter_repl
                jupyter_comm

@@ -13,5 +13,6 @@
                 -thread
                 (:include ${ROOT}/config/ocaml_flags.sexp)))
   (preprocess  (pps (ppx_deriving_yojson)))
+  (preprocess (pps (bisect_ppx -conditional)))
   (libraries   (jupyter
                 jupyter.notebook))))

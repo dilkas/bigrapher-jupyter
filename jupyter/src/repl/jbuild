@@ -10,7 +10,7 @@
                 Error
                 Compat))
   (flags       ((:include ${ROOT}/config/ocaml_flags.sexp)))
-  (preprocess  (pps (lwt.ppx)))
+  (preprocess  (pps (bisect_ppx lwt.ppx -conditional)))
   (libraries   (jupyter
                 jupyter_log
                 str
@@ -23,4 +23,4 @@
 (rule
  ((targets (compat.ml))
   (deps    (compat.cppo.ml))
-  (action  (run ${bin:cppo} -V OCAML:${ocaml_version} ${<} -o ${@}))))
+  (action  (chdir ${ROOT} (run ${bin:cppo} -V OCAML:${ocaml_version} ${<} -o ${@})))))

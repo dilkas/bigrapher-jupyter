@@ -5,6 +5,7 @@
                test_process))
   (modes      (byte))
   (preprocess (pps (lwt.ppx ppx_deriving.show)))
+  (preprocess (pps (bisect_ppx -conditional)))
   (libraries  (jupyter
                jupyter_repl
                oUnit

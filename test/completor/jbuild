@@ -3,6 +3,7 @@
 (executables
  ((names      (test_completor))
   (preprocess (pps (lwt.ppx ppx_deriving.show)))
+  (preprocess (pps (bisect_ppx -conditional)))
   (libraries  (jupyter
                jupyter_completor
                oUnit
