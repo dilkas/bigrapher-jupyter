@@ -235,36 +235,47 @@ let code_of_buffer model_is_full bigraphs reaction_rules =
         all_code in
     complete_model bigraphs reaction_rules filtered_code
 
-(* TODO: delete created files *)
-(* TODO: don't delete everything after running a complete model *)
-(* TODO: lint? *)
+(* If the directory exists, remove all files in it; if not, create it *)
+let prepare_directory_for_cell image_directory permissions count =
+  (* create a directory for all images if needed *)
+  if not (Sys.file_exists image_directory) then
+    Unix.mkdir image_directory permissions ;
+
+  let count_str = string_of_int count in
+  let dirname = Filename.concat image_directory count_str in
+  begin
+    try Unix.mkdir dirname permissions
+    with _ -> List.iter Sys.remove (files_in_dir dirname)
+  end ;
+  dirname
+
+(* Remove code from the last cell from the buffer *)
+let truncate_buffer code =
+    (* -1 because we added a newline *)
+    Buffer.truncate buffer (Buffer.length buffer - String.length code - 1)
+
+let write_code_to_file count contents =
+  let filename = Printf.sprintf "[%d].big" count in
+  let channel = open_out filename in
+  Printf.fprintf channel "%s" contents ;
+  close_out channel ;
+  filename
+
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  (* manage the image directory TODO: separate function *)
-  let dirname = Printf.sprintf "img-%d" count in
-  begin
-    try
-      Unix.mkdir dirname 0o700
-    with _ -> List.iter Sys.remove (files_in_dir dirname)
-  end ;
-
+  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
   let lines = String.split_on_char '\n' code in
-  let full_model = has_main_block lines in
+
+  let model_is_full = has_main_block lines in
   let bigraphs = list_defined_entities "big" lines in
   let reaction_rules = list_defined_entities "react" lines in
-  Buffer.add_string buffer code ;
-  Buffer.add_char buffer '\n' ;
 
-  let contents = code_of_buffer full_model bigraphs reaction_rules in
+  Buffer.add_string buffer (code ^ "\n") ;
+  let contents = code_of_buffer model_is_full bigraphs reaction_rules in
 
-  (* write code to a file *)
-  let filename = sprintf "[%d].big" count in
-  let oc = open_out filename in
-  Printf.fprintf oc "%s" contents ;
-  close_out oc ;
-
+  let filename = write_code_to_file count contents in
   let channel, output_buffer = run_bigrapher dirname filename in
   (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
@@ -272,12 +283,11 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
   | Unix.WEXITED 0 ->
     display_bigraphs send count dirname bigraphs ;
     display_reaction_rules send count dirname reaction_rules ;
-    if full_model then Buffer.clear buffer ;
+    if model_is_full then truncate_buffer code ;
     Sys.remove filename ;
     Shell.SHELL_OK
   | _ ->
-    (* -1 because we added a newline *)
-    Buffer.truncate buffer (Buffer.length buffer - String.length code - 1) ;
+    truncate_buffer code ;
     Sys.remove filename ;
     Shell.SHELL_ERROR
 
