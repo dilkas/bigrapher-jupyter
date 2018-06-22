@@ -1,7 +1,7 @@
 language: python
 dist: trusty
 python:
-  - "3.6"
+  - "3.4"
 
 cache:
   apt: true
@@ -53,7 +53,7 @@ matrix:
 
 before_script:
   - if which brew; then brew update && brew upgrade && brew install m4 rsync aspcud libffi zeromq cairo; fi
-  - pip install --user ipython==5.4.1 jupyter
+  - pip install ipython==5.4.1 jupyter
   - curl -L https://gist.githubusercontent.com/akabe/24979afbf95c4cf4393f589cda997e1b/raw/install_opam.sh | sh -xeu
   - eval $(opam config env)
   - opam install -y ocamlfind 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core
