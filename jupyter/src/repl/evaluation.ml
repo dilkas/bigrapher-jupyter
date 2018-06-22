@@ -25,8 +25,9 @@
 open Format
 open Jupyter
 
-let buffer = Buffer.create 256
-let ppf = formatter_of_buffer buffer
+let ocaml_buffer = Buffer.create 256
+let bigrapher_buffer = Buffer.create 256
+let ppf = formatter_of_buffer ocaml_buffer
 
 (** {2 Initialization} *)
 
@@ -92,6 +93,43 @@ let iopub_interrupt () =
   ]
 
 (** {2 Execution} *)
+
+let eval_phrase ~filename phrase =
+  Compat.reset_fatal_warnings () ;
+  let phrase' = Compat.preprocess_phrase ~filename phrase in (* apply PPX *)
+  Env.reset_cache_toplevel () ;
+  let is_ok = Toploop.execute_phrase true ppf phrase' in
+  let message = Buffer.contents ocaml_buffer in
+  Buffer.clear ocaml_buffer ;
+  (is_ok, message)
+
+let eval_ocaml ?(error_ctx_size = 1) ~send ~count code =
+  let filename = sprintf "[%d]" count in
+  let rec loop status = function
+    | [] -> status
+    | phrase :: tl ->
+      match eval_phrase ~filename phrase with
+      | true, "" -> loop status tl
+      | true, msg -> send (iopub_success ~count msg) ; loop status tl
+      | false, msg ->
+        send (Iopub.error ~value:"runtime_error"
+                [AnsiCode.FG.red ^ msg ^ AnsiCode.reset]) ;
+        Shell.SHELL_ERROR
+  in
+  try
+    let lexbuf = Lexing.from_string (code ^ "\n") in
+    Location.init lexbuf filename ;
+    Location.input_name := filename ;
+    Location.input_lexbuf := Some lexbuf ;
+    loop Shell.SHELL_OK (!Toploop.parse_use_file lexbuf)
+  with
+  | Sys.Break ->
+    send (iopub_interrupt ()) ;
+    Shell.SHELL_ABORT
+  | exn ->
+    let msg = Error.to_string_hum ~ctx_size:error_ctx_size exn in
+    send (Iopub.error ~value:"compile_error" [msg]) ;
+    Shell.SHELL_ERROR
 
 (* Display each reaction rule in names_of_rules by printing its name and
    creating an HTML table, connecting both diagrams *)
@@ -219,9 +257,9 @@ let run_bigrapher diagram_directory model_filename =
 
 (* Extract code from the buffer, modifying it as necessary *)
 let code_of_buffer model_is_full bigraphs reaction_rules =
-  if model_is_full then Buffer.contents buffer
+  if model_is_full then Buffer.contents bigrapher_buffer
   else
-    let all_code = Buffer.contents buffer in
+    let all_code = Buffer.contents bigrapher_buffer in
     let filtered_code = remove_reaction_rules_from_previous_cells reaction_rules
         all_code in
     complete_model bigraphs reaction_rules filtered_code
@@ -242,8 +280,9 @@ let prepare_directory_for_cell image_directory permissions count =
 
 (* Remove code from the last cell from the buffer *)
 let truncate_buffer code =
-    (* -1 because we added a newline *)
-    Buffer.truncate buffer (Buffer.length buffer - String.length code - 1)
+  (* -1 because we added a newline *)
+  let new_length = Buffer.length bigrapher_buffer - String.length code - 1 in
+  Buffer.truncate bigrapher_buffer new_length
 
 let write_code_to_file count contents =
   let filename = Printf.sprintf "[%d].big" count in
@@ -260,65 +299,33 @@ let safe_remove filename =
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
-  let lines = String.split_on_char '\n' code in
+  if String.sub code 0 7 = "%ocaml\n"
+  then
+    let remaining_code = Str.string_after code 7 in
+    eval_ocaml ~error_ctx_size ~send ~count remaining_code
+  else
+    let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
+    let lines = String.split_on_char '\n' code in
 
-  let model_is_full = has_main_block lines in
-  let bigraphs = list_defined_entities "big" lines in
-  let reaction_rules = list_defined_entities "react" lines in
+    let model_is_full = has_main_block lines in
+    let bigraphs = list_defined_entities "big" lines in
+    let reaction_rules = list_defined_entities "react" lines in
 
-  Buffer.add_string buffer (code ^ "\n") ;
-  let contents = code_of_buffer model_is_full bigraphs reaction_rules in
+    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+    let contents = code_of_buffer model_is_full bigraphs reaction_rules in
 
-  let filename = write_code_to_file count contents in
-  let channel, output_buffer = run_bigrapher dirname filename in
-  (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
+    let filename = write_code_to_file count contents in
+    let channel, output_buffer = run_bigrapher dirname filename in
+    (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
-  match Unix.close_process_in channel with
-  | Unix.WEXITED 0 ->
-    display_bigraphs send count dirname bigraphs ;
-    display_reaction_rules send count dirname reaction_rules ;
-    if model_is_full then truncate_buffer code ;
-    safe_remove filename ;
-    Shell.SHELL_OK
-  | _ ->
-    truncate_buffer code ;
-    safe_remove filename ;
-    Shell.SHELL_ERROR
-
-let eval_phrase ~filename phrase =
-  Compat.reset_fatal_warnings () ;
-  let phrase' = Compat.preprocess_phrase ~filename phrase in (* apply PPX *)
-  Env.reset_cache_toplevel () ;
-  let is_ok = Toploop.execute_phrase true ppf phrase' in
-  let message = Buffer.contents buffer in
-  Buffer.clear buffer ;
-  (is_ok, message)
-
-let eval_ocaml ?(error_ctx_size = 1) ~send ~count code =
-  let filename = sprintf "[%d]" count in
-  let rec loop status = function
-    | [] -> status
-    | phrase :: tl ->
-      match eval_phrase ~filename phrase with
-      | true, "" -> loop status tl
-      | true, msg -> send (iopub_success ~count msg) ; loop status tl
-      | false, msg ->
-        send (Iopub.error ~value:"runtime_error"
-                [AnsiCode.FG.red ^ msg ^ AnsiCode.reset]) ;
-        Shell.SHELL_ERROR
-  in
-  try
-    let lexbuf = Lexing.from_string (code ^ "\n") in
-    Location.init lexbuf filename ;
-    Location.input_name := filename ;
-    Location.input_lexbuf := Some lexbuf ;
-    loop Shell.SHELL_OK (!Toploop.parse_use_file lexbuf)
-  with
-  | Sys.Break ->
-    send (iopub_interrupt ()) ;
-    Shell.SHELL_ABORT
-  | exn ->
-    let msg = Error.to_string_hum ~ctx_size:error_ctx_size exn in
-    send (Iopub.error ~value:"compile_error" [msg]) ;
-    Shell.SHELL_ERROR
+    match Unix.close_process_in channel with
+    | Unix.WEXITED 0 ->
+      display_bigraphs send count dirname bigraphs ;
+      display_reaction_rules send count dirname reaction_rules ;
+      if model_is_full then truncate_buffer code ;
+      safe_remove filename ;
+      Shell.SHELL_OK
+    | _ ->
+      truncate_buffer code ;
+      safe_remove filename ;
+      Shell.SHELL_ERROR
