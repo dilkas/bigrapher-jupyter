@@ -55,7 +55,7 @@ before_script:
   - pip install ipython==5.4.1 jupyter
   - curl -L https://gist.githubusercontent.com/akabe/24979afbf95c4cf4393f589cda997e1b/raw/install_opam.sh | sh -xeu
   - eval $(opam config env)
-  - opam install -y ocamlfind 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core ocaml-migrate-parsetree lwt ppx_lwt ppx_deriving_yojson
+  - opam install -y ocamlfind 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core ocaml-migrate-parsetree lwt ppx_deriving_yojson
 
 script:
   # lint and code-format checks:
@@ -63,7 +63,6 @@ script:
   - opam lint jupyter.opam
   - opam lint jupyter-archimedes.opam
   # installation
-  - jbuilder external-lib-deps --missing -p jupyter @install
   - opam pin add jupyter . -y --verbose
   - opam pin add jupyter-archimedes . -y --verbose
   - opam info jupyter # package is installed.
