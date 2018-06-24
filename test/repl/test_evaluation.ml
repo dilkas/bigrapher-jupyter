@@ -204,6 +204,13 @@ let test__removing_reaction_rules_from_previous_cells ctxt =
   assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3 ;
   assert_equal ~ctxt ~printer:[%show: reply] expected2 actual4
 
+let test__react_as_a_comment ctxt =
+  let code = "ctrl Foo = 0;\
+              \n# react harder >:(\
+              \nreact bar = Foo --> Foo;" in
+  let actual = remove_reaction_rules_from_previous_cells ["bar"] code in
+  assert_equal ~printer:[%show: string] code actual
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -223,6 +230,7 @@ let suite =
       "ocaml_from_bigrapher" >:: test__ocaml_from_bigrapher;
       "removing_reaction_rules_from_previous_cells" >::
       test__removing_reaction_rules_from_previous_cells;
+      "react_as_a_comment" >:: test__react_as_a_comment;
     ]
   ]
 

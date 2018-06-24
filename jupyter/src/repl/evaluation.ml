@@ -202,8 +202,9 @@ let rec remove_reaction_rules_from_previous_cells rules_to_keep text =
         text_before_reaction_rule ^
         remove_reaction_rules_from_previous_cells rules_to_keep remaining_text
     else
-      let text_before_react = Str.string_before text i in
-      let text_after_react = Str.string_after text (i + 5) in
+      let second_letter_index = i + 1 in
+      let text_before_react = Str.string_before text second_letter_index in
+      let text_after_react = Str.string_after text second_letter_index in
       text_before_react ^
       remove_reaction_rules_from_previous_cells rules_to_keep text_after_react
   with Not_found -> text

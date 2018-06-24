@@ -52,3 +52,5 @@ val eval_ocaml :
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
+
+val remove_reaction_rules_from_previous_cells : string list -> string -> string
