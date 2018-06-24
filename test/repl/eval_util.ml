@@ -95,13 +95,13 @@ let is_topfind_log = function
 let inner_eval
     ?(ocaml_mode = false)
     ?(post_exec = lwt_ignore)
-    ?init_file function_to_run
+    ?init_file function_to_run code
   =
   Process.set_ocaml_mode ocaml_mode ;
   let repl = Process.create ?init_file () in
   let strm = Process.stream repl in
   Lwt_main.run begin
-    function_to_run repl ;
+    let%lwt _ = function_to_run repl code in
     let%lwt () = post_exec repl in
     let%lwt () = Process.close repl in
     Lwt_stream.to_list strm
@@ -115,10 +115,10 @@ let eval
     ?(post_exec = lwt_ignore)
     ?init_file ?(count = 0) code
   =
-  let evaluate_code repl =
-    ignore (Process.eval ~ctx ~count repl code)
+  let evaluate_code repl code =
+    Process.eval ~ctx ~count repl code
   in
-  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code
+  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code code
 
 (* Evaluate multiple code blocks *)
 let eval_multiple
@@ -127,8 +127,11 @@ let eval_multiple
     ?(post_exec = lwt_ignore)
     ?init_file ?(count = 0) code_blocks
   =
-  let evaluate_code repl =
-    List.iter (fun code -> ignore (Process.eval ~ctx ~count repl code))
-      code_blocks
+  let rec evaluate_code repl = function
+    | [] -> failwith "trying to evaluate an empty list"
+    | [h] -> Process.eval ~ctx ~count repl h
+    | h :: t ->
+      let%lwt _ = Process.eval ~ctx ~count repl h in
+      evaluate_code repl t
   in
-  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code
+  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code code_blocks

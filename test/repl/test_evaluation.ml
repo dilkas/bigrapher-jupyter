@@ -174,7 +174,6 @@ let test__incomplete_model ctxt =
   let actual = Eval_util.eval ~ocaml_mode:false
       "ctrl Foo = 0;\
        \nbig foo = Foo.1;" |> map_content in
-  Printf.printf "\n%d\n" (List.length actual) ;
   let actual1 = List.nth actual 0 in
   let actual2 = List.nth actual 2 in
   let expected1 = Iopub (iopub_success ~count:0 "foo") in
@@ -188,7 +187,7 @@ let suite =
       "simple_phrase" >:: test__simple_phrase;
       "multiple_phrases" >:: test__multiple_phrases;
       "directive" >:: test__directive;
-      (*"external_command" >:: test__external_command;*)
+      "external_command" >:: test__external_command;
       "syntax_error" >:: test__syntax_error;
       "unbound_value" >:: test__unbound_value;
       "type_error" >:: test__type_error;
