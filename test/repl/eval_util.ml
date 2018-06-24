@@ -91,19 +91,44 @@ let is_topfind_log = function
     end
   | _ -> false
 
+(* A generalisation of eval and eval_multiple *)
+let inner_eval
+    ?(ocaml_mode = false)
+    ?(post_exec = lwt_ignore)
+    ?init_file function_to_run
+  =
+  Process.set_ocaml_mode ocaml_mode ;
+  let repl = Process.create ?init_file () in
+  let strm = Process.stream repl in
+  Lwt_main.run begin
+    function_to_run repl ;
+    let%lwt () = post_exec repl in
+    let%lwt () = Process.close repl in
+    Lwt_stream.to_list strm
+  end
+  |> List.filter (fun msg -> not (is_topfind_log msg))
+
+(* Evaluate a single code block *)
 let eval
     ?(ocaml_mode = false)
     ?(ctx = default_ctx)
     ?(post_exec = lwt_ignore)
     ?init_file ?(count = 0) code
   =
-  Process.set_ocaml_mode ocaml_mode ;
-  let repl = Process.create ?init_file () in
-  let strm = Process.stream repl in
-  Lwt_main.run begin
-    let%lwt _ = Process.eval ~ctx ~count repl code in
-    let%lwt () = post_exec repl in
-    let%lwt () = Process.close repl in
-    Lwt_stream.to_list strm
-  end
-  |> List.filter (fun msg -> not (is_topfind_log msg))
+  let evaluate_code repl =
+    ignore (Process.eval ~ctx ~count repl code)
+  in
+  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code
+
+(* Evaluate multiple code blocks *)
+let eval_multiple
+    ?(ocaml_mode = false)
+    ?(ctx = default_ctx)
+    ?(post_exec = lwt_ignore)
+    ?init_file ?(count = 0) code_blocks
+  =
+  let evaluate_code repl =
+    List.iter (fun code -> ignore (Process.eval ~ctx ~count repl code))
+      code_blocks
+  in
+  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code

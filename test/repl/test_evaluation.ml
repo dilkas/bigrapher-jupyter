@@ -52,129 +52,143 @@ let test__multiple_phrases ctxt =
     ] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
-(*let test__directive ctxt =
-  let status, actual = eval "#load \"str.cma\" ;; Str.regexp \".*\"" in
-  let expected = [iopub_success ~count:0 "- : Str.regexp = <abstr>\n"] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+let test__directive ctxt =
+  let actual = eval "#load \"str.cma\" ;; Str.regexp \".*\"" |> map_content in
+  let expected = [Iopub (iopub_success ~count:0 "- : Str.regexp = <abstr>\n");
+                 Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__external_command ctxt =
-  let status, actual = eval "Sys.command \"ls -l >/dev/null 2>/dev/null\"" in
-  let expected = [iopub_success ~count:0 "- : int = 0\n"] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+  let actual = eval "Sys.command \"ls -l >/dev/null 2>/dev/null\""
+               |> map_content in
+  let expected = [Iopub (iopub_success ~count:0 "- : int = 0\n");
+                 Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__syntax_error ctxt =
-  let status, actual = eval ~count:123 "let let let\nlet" in
+  let actual = eval ~count:123 "let let let\nlet" |> map_content in
   let expected =
-    [error ~value:"compile_error"
-       ["\x1b[32mFile \"[123]\", line 1, characters 4-7:\
-         \n\x1b[31mError: Syntax error\
-         \n\x1b[36m   1: \x1b[30mlet \x1b[4mlet\x1b[0m\x1b[30m let\
-         \n\x1b[36m   2: \x1b[30mlet\x1b[0m\n"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+    [Iopub (error ~value:"compile_error"
+              ["\x1b[32mFile \"[123]\", line 1, characters 4-7:\
+                \n\x1b[31mError: Syntax error\
+                \n\x1b[36m   1: \x1b[30mlet \x1b[4mlet\x1b[0m\x1b[30m let\
+                \n\x1b[36m   2: \x1b[30mlet\x1b[0m\n"]);
+     Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__unbound_value ctxt =
-  let status, actual = eval ~count:123 "foo 42" in
+  let actual = eval ~count:123 "foo 42" |> map_content in
   let expected =
-    [error ~value:"compile_error"
-       ["\x1b[32mFile \"[123]\", line 1, characters 0-3:\
-         \n\x1b[31mError: Unbound value foo\
-         \n\x1b[36m   1: \x1b[30m\x1b[4mfoo\x1b[0m\x1b[30m 42\x1b[0m\n"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+    [Iopub (error ~value:"compile_error"
+              ["\x1b[32mFile \"[123]\", line 1, characters 0-3:\
+                \n\x1b[31mError: Unbound value foo\
+                \n\x1b[36m   1: \x1b[30m\x1b[4mfoo\x1b[0m\x1b[30m 42\x1b[0m\n"]);
+     Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__type_error ctxt =
-  let status, actual = eval ~count:123 "42 = true" in
+  let actual = eval ~count:123 "42 = true" |> map_content in
   let expected =
-    [error ~value:"compile_error"
-       ["\x1b[32mFile \"[123]\", line 1, characters 5-9:\
-         \n\x1b[31mError: This expression has type bool but an expression was expected of type\
-         \n         int\
-         \n\x1b[36m   1: \x1b[30m42 = \x1b[4mtrue\x1b[0m\n"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+    [Iopub (error ~value:"compile_error"
+              ["\x1b[32mFile \"[123]\", line 1, characters 5-9:\
+                \n\x1b[31mError: This expression has type bool but an \
+                expression was expected of type\
+                \n         int\
+                \n\x1b[36m   1: \x1b[30m42 = \x1b[4mtrue\x1b[0m\n"]);
+    Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__long_error_message ctxt =
-  let status, actual = eval ~count:123
+  let actual = eval ~count:123
       "let a = 42 in\n\
        let b = 43 in\n\
        let c = foo in\n\
        let d = 44 in\n\
-       ()" in
+       ()" |> map_content in
   let expected =
-    [error ~value:"compile_error"
-       ["\x1b[32mFile \"[123]\", line 3, characters 8-11:\
-         \n\x1b[31mError: Unbound value foo\
-         \n\x1b[36m   2: \x1b[30mlet b = 43 in\
-         \n\x1b[36m   3: \x1b[30mlet c = \x1b[4mfoo\x1b[0m\x1b[30m in\
-         \n\x1b[36m   4: \x1b[30mlet d = 44 in\x1b[0m\n"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+    [Iopub (error ~value:"compile_error"
+              ["\x1b[32mFile \"[123]\", line 3, characters 8-11:\
+                \n\x1b[31mError: Unbound value foo\
+                \n\x1b[36m   2: \x1b[30mlet b = 43 in\
+                \n\x1b[36m   3: \x1b[30mlet c = \x1b[4mfoo\x1b[0m\x1b[30m in\
+                \n\x1b[36m   4: \x1b[30mlet d = 44 in\x1b[0m\n"]);
+    Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual ;
-  let status, actual = eval ~count:123 "List.\n dummy" in
+  let actual = eval ~count:123 "List.\n dummy" |> map_content in
   let expected =
-    [error ~value:"compile_error"
-       ["\x1b[32mFile \"[123]\", line 1, characters 0-12:\
-         \n\x1b[31mError: Unbound value List.dummy\
-         \n\x1b[36m   1: \x1b[30m\x1b[4mList.\x1b[0m\
-         \n\x1b[36m   2: \x1b[30m\x1b[4m dummy\x1b[0m\n"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+    [Iopub (error ~value:"compile_error"
+              ["\x1b[32mFile \"[123]\", line 1, characters 0-12:\
+                \n\x1b[31mError: Unbound value List.dummy\
+                \n\x1b[36m   1: \x1b[30m\x1b[4mList.\x1b[0m\
+                \n\x1b[36m   2: \x1b[30m\x1b[4m dummy\x1b[0m\n"]);
+    Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__exception ctxt =
-  let status, actual = eval "failwith \"FAIL\"" in
+  let actual = eval "failwith \"FAIL\"" |> map_content in
   let msg =
     if Sys.ocaml_version <= "4.02.3"
     then "\x1b[31mException: Failure \"FAIL\".\n\x1b[0m"
     else "\x1b[31mException: Failure \"FAIL\".\n\
           Raised at file \"pervasives.ml\", line 32, characters 22-33\n\
-          Called from file \"toplevel/toploop.ml\", line 180, characters 17-56\n\x1b[0m"
+          Called from file \"toplevel/toploop.ml\", line 180, characters \
+          17-56\n\x1b[0m"
   in
-  let expected = [error ~value:"runtime_error" [msg]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+  let expected = [Iopub (error ~value:"runtime_error" [msg]);
+                 Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__unknown_directive ctxt =
-  let status, actual = eval "#foo" in
-  let expected = [error ~value:"runtime_error"
-                    ["\x1b[31mUnknown directive `foo'.\n\x1b[0m"]] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_ERROR status ;
+  let actual = eval "#foo" |> map_content in
+  let expected = [Iopub (error ~value:"runtime_error"
+                           ["\x1b[31mUnknown directive `foo'.\n\x1b[0m"]);
+                 Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__ppx ctxt =
-  let status, actual = eval "#require \"ppx_deriving.show\" ;; \
-                             type t = { x : int } [@@deriving show]" in
+  let actual = eval "#require \"ppx_deriving.show\" ;; \
+                     type t = { x : int } [@@deriving show]" |> map_content in
   let expected =
-    [iopub_success ~count:0
-       "type t = { x : int; }\n\
-        val pp : Format.formatter -> t -> Ppx_deriving_runtime.unit = <fun>\n\
-        val show : t -> Ppx_deriving_runtime.string = <fun>\n"] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+    [Iopub (iopub_success ~count:0
+              "type t = { x : int; }\n\
+               val pp : Format.formatter -> t -> Ppx_deriving_runtime.unit = \
+               <fun>\n\
+               val show : t -> Ppx_deriving_runtime.string = <fun>\n");
+    Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__camlp4 ctxt =
-  let _ = eval "#camlp4o ;;" in
-  let status, actual = eval "[< '1 ; '2 >]" in
-  let expected = [iopub_success ~count:0 "- : int Stream.t = <abstr>\n"] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
-  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+  let actual = eval_multiple ~ocaml_mode:true ["#camlp4o ;;";
+                                               "[< '1 ; '2 >]"] |> map_content in
+  let actual1 = List.nth actual 0 in
+  let actual2 = List.nth actual 2 in
+  let actual3 = List.nth actual 3 in
+  let expected1 = Shell (execute_reply ~count:0 SHELL_OK) in
+  let expected2 = Iopub (iopub_success ~count:0 "- : int Stream.t = <abstr>\n") in
+  let expected3 = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3
 
 let test__incomplete_model ctxt =
-  let status, actual = eval ~ocaml_mode:false
-      "ctrl Foo = 0;
-big foo = Foo.1;" in
-  let expected = [] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
-  assert_equal ~ctxt ~printer:[%show: reply list] expected actual*)
+  let actual = Eval_util.eval ~ocaml_mode:false
+      "ctrl Foo = 0;\
+       \nbig foo = Foo.1;" |> map_content in
+  Printf.printf "\n%d\n" (List.length actual) ;
+  let actual1 = List.nth actual 0 in
+  let actual2 = List.nth actual 2 in
+  let expected1 = Iopub (iopub_success ~count:0 "foo") in
+  let expected2 = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2
 
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
       "simple_phrase" >:: test__simple_phrase;
       "multiple_phrases" >:: test__multiple_phrases;
-      (*"directive" >:: test__directive;
-      "external_command" >:: test__external_command;
+      "directive" >:: test__directive;
+      (*"external_command" >:: test__external_command;*)
       "syntax_error" >:: test__syntax_error;
       "unbound_value" >:: test__unbound_value;
       "type_error" >:: test__type_error;
@@ -182,8 +196,8 @@ let suite =
       "exception" >:: test__exception;
       "unknown_directive" >:: test__unknown_directive;
       "ppx" >:: test__ppx;
-        "camlp4" >:: test__camlp4;*)
-      (*"incomplete_model" >:: test__incomplete_model;*)
+      "camlp4" >:: test__camlp4;
+      "incomplete_model" >:: test__incomplete_model;
     ]
   ]
 
