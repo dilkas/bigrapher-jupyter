@@ -26,6 +26,29 @@ open Jupyter.Message
 open Jupyter.Iopub
 open Jupyter_repl
 
+type reply =
+  | Iopub of Jupyter.Iopub.reply
+  | Stdin of Jupyter.Stdin.reply
+  | Shell of Jupyter.Shell.reply
+
+let map_content replies =
+  replies
+  |> List.map
+    (function
+      | SHELL_REP shell -> Shell shell.content
+      | IOPUB_REP iopub -> Iopub iopub.content
+      | STDIN_REP stdin -> Stdin stdin.content)
+
+let pp_reply ppf reply =
+  begin
+    match reply with
+    | Shell shell -> [%to_yojson: Jupyter.Shell.reply] shell
+    | Iopub iopub -> [%to_yojson: Jupyter.Iopub.reply] iopub
+    | Stdin stdin -> [%to_yojson: Jupyter.Stdin.reply] stdin
+  end
+  |> Yojson.Safe.to_string
+  |> pp_print_string ppf
+
 let default_ctx =
   {
     zmq_ids = []; buffers = []; metadata = ""; parent_header = None;

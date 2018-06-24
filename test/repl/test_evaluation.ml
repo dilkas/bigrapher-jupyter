@@ -25,52 +25,34 @@ open OUnit2
 open Jupyter.Iopub
 open Jupyter.Shell
 open Jupyter_repl.Evaluation
+open Eval_util
 
 let pp_status ppf status =
   [%to_yojson: Jupyter.Shell.status] status
   |> Yojson.Safe.to_string
   |> pp_print_string ppf
 
-let pp_reply ppf reply =
-  [%to_yojson: Jupyter.Iopub.reply] reply
-  |> Yojson.Safe.to_string
-  |> pp_print_string ppf
+let eval = eval ~ocaml_mode:true
 
-let eval ?(count = 0) code =
-  let replies = ref [] in
-  let send r = replies := r :: !replies in
-  let status = eval ~send ~count code in
-  (status, List.rev !replies)
-
-let test__constant_definitions ctxt =
-  let status, actual = eval
-      "float tau = 20.3;
-float t_min = 15. + tau;
-int size = 132;" in
-  let expected = [] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
-  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
-
-(*let test__simple_phrase ctxt =
-  let status, actual = eval "let x = (4 + 1) * 3" in
-  let expected = [iopub_success ~count:0 "val x : int = 15\n"] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+let test__simple_phrase ctxt =
+  let actual = eval "let x = (4 + 1) * 3" |> map_content in
+  let expected = [Iopub (iopub_success ~count:0 "val x : int = 15\n");
+                 Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__multiple_phrases ctxt =
-  let status, actual = eval
-      "let x = (4 + 1) * 3\n\
+  let actual = eval "let x = (4 + 1) * 3\n\
        let y = \"Hello \" ^ \"World\"\n\
-       let z = List.map (fun x -> x * 2) [1; 2; 3]\n" in
+       let z = List.map (fun x -> x * 2) [1; 2; 3]\n" |> map_content in
   let expected = [
-    iopub_success ~count:0 "val x : int = 15\n";
-    iopub_success ~count:0 "val y : string = \"Hello World\"\n";
-    iopub_success ~count:0 "val z : int list = [2; 4; 6]\n";
-  ] in
-  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+    Iopub (iopub_success ~count:0 "val x : int = 15\n");
+    Iopub (iopub_success ~count:0 "val y : string = \"Hello World\"\n");
+    Iopub (iopub_success ~count:0 "val z : int list = [2; 4; 6]\n");
+    Shell (execute_reply ~count:0 SHELL_OK)
+    ] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
-let test__directive ctxt =
+(*let test__directive ctxt =
   let status, actual = eval "#load \"str.cma\" ;; Str.regexp \".*\"" in
   let expected = [iopub_success ~count:0 "- : Str.regexp = <abstr>\n"] in
   assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
@@ -176,25 +158,32 @@ let test__camlp4 ctxt =
   let status, actual = eval "[< '1 ; '2 >]" in
   let expected = [iopub_success ~count:0 "- : int Stream.t = <abstr>\n"] in
   assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+let test__incomplete_model ctxt =
+  let status, actual = eval ~ocaml_mode:false
+      "ctrl Foo = 0;
+big foo = Foo.1;" in
+  let expected = [] in
+  assert_equal ~ctxt ~printer:[%show: status] SHELL_OK status ;
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual*)
 
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
-      (*
--      "simple_phrase" >:: test__simple_phrase;
--      "multiple_phrases" >:: test__multiple_phrases;
--      "directive" >:: test__directive;
--      "external_command" >:: test__external_command;
--      "syntax_error" >:: test__syntax_error;
--      "unbound_value" >:: test__unbound_value;
--      "type_error" >:: test__type_error;
--      "long_error_message" >:: test__long_error_message;
--      "exception" >:: test__exception;
--      "unknown_directive" >:: test__unknown_directive;
--      "ppx" >:: test__ppx;
--      "camlp4" >:: test__camlp4; *)
-      "constant definitions" >:: test__constant_definitions;
+      "simple_phrase" >:: test__simple_phrase;
+      "multiple_phrases" >:: test__multiple_phrases;
+      (*"directive" >:: test__directive;
+      "external_command" >:: test__external_command;
+      "syntax_error" >:: test__syntax_error;
+      "unbound_value" >:: test__unbound_value;
+      "type_error" >:: test__type_error;
+      "long_error_message" >:: test__long_error_message;
+      "exception" >:: test__exception;
+      "unknown_directive" >:: test__unknown_directive;
+      "ppx" >:: test__ppx;
+        "camlp4" >:: test__camlp4;*)
+      (*"incomplete_model" >:: test__incomplete_model;*)
     ]
   ]
 

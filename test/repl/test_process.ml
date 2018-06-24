@@ -28,30 +28,7 @@ open Jupyter.Shell
 open Jupyter_repl.Evaluation
 open Eval_util
 
-type reply =
-  | Iopub of Jupyter.Iopub.reply
-  | Stdin of Jupyter.Stdin.reply
-  | Shell of Jupyter.Shell.reply
-
 let eval = eval ~ocaml_mode:true
-
-let pp_reply ppf reply =
-  begin
-    match reply with
-    | Shell shell -> [%to_yojson: Jupyter.Shell.reply] shell
-    | Iopub iopub -> [%to_yojson: Jupyter.Iopub.reply] iopub
-    | Stdin stdin -> [%to_yojson: Jupyter.Stdin.reply] stdin
-  end
-  |> Yojson.Safe.to_string
-  |> pp_print_string ppf
-
-let map_content replies =
-  replies
-  |> List.map
-    (function
-      | SHELL_REP shell -> Shell shell.content
-      | IOPUB_REP iopub -> Iopub iopub.content
-      | STDIN_REP stdin -> Stdin stdin.content)
 
 let test__simple_phrase ctxt =
   let actual = eval "let x = (4 + 1) * 3" |> map_content in
@@ -94,9 +71,8 @@ let test__sys_interactive ctxt =
   ] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
-(*
 let test__simple_model ctxt =
-  let actual = eval
+  let actual = Eval_util.eval ~ocaml_mode:false
       "ctrl Foo = 0;
 big foo = Foo.1;
 react bar = foo --> foo;
@@ -113,7 +89,7 @@ end" |> map_content in
   let expected3 = Shell (execute_reply ~count:0 SHELL_OK) in
   assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
   assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
-  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3*)
+  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3
 
 let suite =
   "Process" >::: [
@@ -121,6 +97,7 @@ let suite =
     "capture_stdout" >:: test__capture_stdout;
     "capture_stderr" >:: test__capture_stderr;
     "sys_interactive" >:: test__sys_interactive;
+    "simple_model" >:: test__simple_model;
   ]
 
 let () = run_test_tt_main suite

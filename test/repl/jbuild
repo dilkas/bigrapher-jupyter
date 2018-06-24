@@ -22,5 +22,5 @@
   (action
    (chdir ${ROOT}/test
           (progn
-            (run ${path:test_evaluation.bc})
+            (run ${path:test_evaluation.bc} -runner sequential)
             (run ${path:test_process.bc} -runner sequential))))))
