@@ -299,7 +299,7 @@ let safe_remove filename =
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
 let eval ?(error_ctx_size = 1) ~send ~count code =
-  if String.sub code 0 7 = "%ocaml\n"
+  if String.length code >= 7 && String.sub code 0 7 = "%ocaml\n"
   then
     let remaining_code = Str.string_after code 7 in
     eval_ocaml ~error_ctx_size ~send ~count remaining_code
@@ -315,7 +315,7 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     let contents = code_of_buffer model_is_full bigraphs reaction_rules in
 
     let filename = write_code_to_file count contents in
-    let channel, output_buffer = run_bigrapher dirname filename in
+    let channel, _ = run_bigrapher dirname filename in
     (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
     match Unix.close_process_in channel with

@@ -171,7 +171,7 @@ let test__camlp4 ctxt =
   assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3
 
 let test__incomplete_model ctxt =
-  let actual = Eval_util.eval ~ocaml_mode:false
+  let actual = Eval_util.eval
       "ctrl Foo = 0;\
        \nbig foo = Foo.1;" |> map_content in
   let actual1 = List.nth actual 0 in
@@ -180,6 +180,29 @@ let test__incomplete_model ctxt =
   let expected2 = Shell (execute_reply ~count:0 SHELL_OK) in
   assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
   assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2
+
+let test__ocaml_from_bigrapher ctxt =
+  let actual = Eval_util.eval "%ocaml\
+                               \n1" |> map_content in
+  let expected = [Iopub (iopub_success ~count:0 "- : int = 1\n");
+                  Shell (execute_reply ~count:0 SHELL_OK)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+let test__removing_reaction_rules_from_previous_cells ctxt =
+  let actual = eval_multiple ["ctrl Foo = 0;\
+                               \nreact foo = Foo -[0.5]-> Foo;";
+                              "react bar = Foo --> Foo;"] |> map_content in
+  let actual1 = List.nth actual 0 in
+  let actual2 = List.nth actual 2 in
+  let actual3 = List.nth actual 3 in
+  let actual4 = List.nth actual 5 in
+  let expected1 = Iopub (iopub_success ~count:0 "foo") in
+  let expected2 = Shell (execute_reply ~count:0 SHELL_OK) in
+  let expected3 = Iopub (iopub_success ~count:0 "bar") in
+  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual4
 
 let suite =
   "Evaluation" >::: [
@@ -197,6 +220,9 @@ let suite =
       "ppx" >:: test__ppx;
       "camlp4" >:: test__camlp4;
       "incomplete_model" >:: test__incomplete_model;
+      "ocaml_from_bigrapher" >:: test__ocaml_from_bigrapher;
+      "removing_reaction_rules_from_previous_cells" >::
+      test__removing_reaction_rules_from_previous_cells;
     ]
   ]
 
