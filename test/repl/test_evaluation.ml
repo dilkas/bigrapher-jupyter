@@ -204,12 +204,22 @@ let test__removing_reaction_rules_from_previous_cells ctxt =
   assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3 ;
   assert_equal ~ctxt ~printer:[%show: reply] expected2 actual4
 
-let test__react_as_a_comment ctxt =
+let test__react_as_a_comment _ =
   let code = "ctrl Foo = 0;\
               \n# react harder >:(\
               \nreact bar = Foo --> Foo;" in
   let actual = remove_reaction_rules_from_previous_cells ["bar"] code in
   assert_equal ~printer:[%show: string] code actual
+
+let test__bigrapher_error ctxt =
+  let actual = Eval_util.eval "!" |> map_content in
+  let expected = [Iopub (stream ~name:IOPUB_STDERR "File '[0].big', line 1, \
+                                                    characters 0-1\n");
+                  Iopub (stream ~name:IOPUB_STDERR
+                           "\x1b[01m\x1b[31mError\x1b[m\x1b[m: \
+                            Unknown character `!'\n");
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let suite =
   "Evaluation" >::: [
@@ -231,6 +241,7 @@ let suite =
       "removing_reaction_rules_from_previous_cells" >::
       test__removing_reaction_rules_from_previous_cells;
       "react_as_a_comment" >:: test__react_as_a_comment;
+      "bigrapher_error" >:: test__bigrapher_error;
     ]
   ]
 
