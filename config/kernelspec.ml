@@ -1,6 +1,7 @@
 (** Generate kernel.json *)
 
 open Format
+open Utils
 
 type kernelspec =
   {
@@ -11,7 +12,15 @@ type kernelspec =
 
 let main ~output ~bindir ~home =
   let oc = open_out output in
-  let display_name = sprintf "OCaml %s" Sys.ocaml_version in
+
+  let channel, buffer = capture_output "bigrapher -V" in
+  let _ = Unix.close_process_in channel in
+  let contents = Buffer.contents buffer in
+  let length = String.length contents in
+  let version = String.sub contents 0 (length - 1) in
+
+  let display_name = sprintf "BigraphER %s (OCaml %s)" version Sys.ocaml_version
+  in
   `Assoc [
     "display_name", `String display_name;
     "language", `String "OCaml";

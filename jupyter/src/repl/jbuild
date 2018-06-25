@@ -11,7 +11,8 @@
                 Compat))
   (flags       ((:include ${ROOT}/config/ocaml_flags.sexp)))
   (preprocess  (pps (bisect_ppx lwt.ppx -conditional)))
-  (libraries   (jupyter
+  (libraries   (utils
+                jupyter
                 jupyter_log
                 str
                 lwt

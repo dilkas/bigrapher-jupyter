@@ -2,11 +2,20 @@
 
 (executables
  ((names       (configure kernelspec))
-  (libraries   (unix yojson))
+  (modules     (Configure Kernelspec))
+  (libraries   (unix yojson utils))
   (flags       (:standard
                 -w A-4-31-33-34-39-41-42-43-44-45-48-49-50-58
                 -safe-string -strict-sequence -strict-formats
                 -short-paths))))
+
+(library
+ ((name       utils)
+  (synopsis   "Functions used in multiple places")
+  (modes      (byte))
+  (modules    (Utils))
+  (preprocess (pps (bisect_ppx -conditional)))
+  (libraries  (unix))))
 
 ;;
 ;; Common OCaml flags: ocaml_flags.sexp, ocaml_test_flags.sexp

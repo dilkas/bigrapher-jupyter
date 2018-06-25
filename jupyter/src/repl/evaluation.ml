@@ -24,6 +24,7 @@
 
 open Format
 open Jupyter
+open Utils
 
 let ocaml_buffer = Buffer.create 256
 let bigrapher_buffer = Buffer.create 256
@@ -240,22 +241,6 @@ end\n"
       random_big random_react random_big in
   model ^ begin_end_block
 
-(* Run bigrapher on the given model, saving generated diagrams in
-   diagram_directory *)
-let run_bigrapher diagram_directory model_filename =
-  let command= Printf.sprintf "bigrapher validate -d %s -f svg %s"
-      diagram_directory model_filename in
-  let channel = Unix.open_process_in command in
-  let output_buffer = Buffer.create 256 in
-  begin
-    try
-      while true do
-        Buffer.add_channel output_buffer channel 1
-      done
-    with End_of_file -> ()
-  end ;
-  channel, output_buffer
-
 (* Extract code from the buffer, modifying it as necessary *)
 let code_of_buffer model_is_full bigraphs reaction_rules =
   if model_is_full then Buffer.contents bigrapher_buffer
@@ -316,7 +301,9 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     let contents = code_of_buffer model_is_full bigraphs reaction_rules in
 
     let filename = write_code_to_file count contents in
-    let channel, _ = run_bigrapher dirname filename in
+    let command = Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname
+        filename in
+    let channel, _ = capture_output command in
     (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
 
     match Unix.close_process_in channel with
