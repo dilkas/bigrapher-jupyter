@@ -221,6 +221,20 @@ let test__bigrapher_error ctxt =
                   Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
+let test__api_model ctxt =
+  let actual = eval "#use \"topfind\" ;;\
+                     \n#require \"bigraph\" ;;\
+                     \nopen Bigraph\
+                     \nlet () =\
+                     \nlet foo = Big.one in\
+                     \nprint_endline (Big.to_string foo)" |> map_content in
+  let expected = [Iopub (stream ~name:IOPUB_STDOUT "- : unit = ()\n");
+                  Iopub (stream ~name:IOPUB_STDOUT "- : unit = ()\n");
+                  Iopub (stream ~name:IOPUB_STDOUT "{}\n");
+                  Iopub (stream ~name:IOPUB_STDOUT "1 0 0\n");
+                  Shell (execute_reply ~count:0 SHELL_OK)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -242,6 +256,7 @@ let suite =
       test__removing_reaction_rules_from_previous_cells;
       "react_as_a_comment" >:: test__react_as_a_comment;
       "bigrapher_error" >:: test__bigrapher_error;
+      "api_model" >:: test__api_model
     ]
   ]
 
