@@ -72,7 +72,7 @@ before_script:
   - opam install -y ocamlfind ocaml-migrate-parsetree 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core
   - opam remove jupyter # remove ocaml-jupyter package in cache (if it exists)
   - opam repository add glasgow 'http://www.dcs.gla.ac.uk/~michele/dcs-opam-repository/'
-  - opam install bigrapher
+  - opam install -y bigrapher
 
 script:
   # lint and code-format checks:
