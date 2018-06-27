@@ -23,6 +23,8 @@ addons:
       - libffi-dev
       - libgmp-dev
       - libzmq-dev=4.0.4-bpa~trusty2
+      - graphviz
+      - minisat
 
 env:
   global:
