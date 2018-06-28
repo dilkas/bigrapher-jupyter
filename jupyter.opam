@@ -30,6 +30,7 @@ depends: [
   "ocamlfind" {build & >= "1.5.0"}
   "jbuilder" {build & >= "1.0+beta14"}
   "bigrapher"
+  "bisect_ppx"
 ]
 depopts: [
   "merlin"
