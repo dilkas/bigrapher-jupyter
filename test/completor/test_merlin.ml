@@ -165,7 +165,19 @@ let test_complete ctxt =
       ];
     } in
   let actual = complete merlin code ~types:true ~pos:11 in
-  require expected actual ~msg:"variant constructor"
+  require expected actual ~msg:"variant constructor" ;
+  let code = "let _ = Bigraph.Big.to_"in
+  let expected = Merlin.{
+      cmpl_start = 20; cmpl_end = 23;
+      cmpl_candidates = [
+        { cmpl_name = "to_dot"; cmpl_kind = CMPL_VALUE;
+          cmpl_type = "Bigraph.Big.t -> string -> string"; cmpl_doc = ""; };
+        { cmpl_name = "to_string"; cmpl_kind = CMPL_VALUE;
+          cmpl_type = "Bigraph.Big.t -> string"; cmpl_doc = ""; };
+      ];
+    } in
+  let actual = complete merlin code ~types:true ~pos:22 in
+    require expected actual ~msg:"Bigraph module"
 
 let suite =
   "Merlin" >::: [
