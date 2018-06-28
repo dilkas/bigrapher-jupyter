@@ -69,11 +69,11 @@ before_script:
   - pyenv global $PYTHONVERSION
   - pip install ipython==5.4.1 jupyter
   # Install OPAM and packages required for CI
-  #- curl -L https://gist.githubusercontent.com/akabe/24979afbf95c4cf4393f589cda997e1b/raw/install_opam.sh | sh -xeu
+  - sh -xeu install_opam.sh
   - eval $(opam config env)
   - opam install -y ocamlfind ocaml-migrate-parsetree 'merlin>=3.0.0' ocp-indent camlp4 'ounit>=2.0.0' core
   - opam remove jupyter # remove ocaml-jupyter package in cache (if it exists)
-  - opam repository add glasgow 'http://www.dcs.gla.ac.uk/~michele/dcs-opam-repository/'
+  #- opam repository add glasgow 'http://www.dcs.gla.ac.uk/~michele/dcs-opam-repository/'
   - opam install -y bigrapher
 
 script:
