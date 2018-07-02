@@ -1,0 +1,75 @@
+\documentclass{article}
+\usepackage[UKenglish]{babel}
+\usepackage[UKenglish]{isodate}
+
+\author{Paulius Dilkas}
+\title{Towards User-Friendly Bigraphs}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  We adapt an OCaml Jupyter kernel to support BigraphER.
+\end{abstract}
+
+\section{Introduction}
+
+%TODO: define cell, begin-end block, stochastic and non-stochastic reaction
+%rules, bigraphs, Jupyter, ocaml kernel
+
+Goals: convenience of use, supporting a similar workflow to how Jupyter works
+with Python, not surprising the user with unexpected behaviour.
+
+\section{Assumptions}
+
+\begin{itemize}
+\item Keywords \texttt{big}, \texttt{react}, \texttt{begin} start the beginning
+  of line.
+\end{itemize}
+
+\section{Features}
+
+% TODO: examples of error handling
+\begin{itemize}
+\item Variables defined in one cell persist to the next (unless the cell
+  contains a begin-end block or fails to run). This is done in the same order as
+  the cells are run, including running the same cell multiple times.
+\item If a cell doesn't have a begin-end block, a dummy one is added (but does
+  not persist).
+\item The output of each cell corresponds to everything defined in that cell
+  (bigraphs and reaction rules): name first, then diagrams.
+\item Reaction rules are visualised in an HTML table, connecting the diagrams
+  side-by-side.
+\item All images are saved in a directory \texttt{jupyter-images}, with a
+  subdirectory for each cell. If a subdirectory doesn't exist, it is created.
+  Otherwise, its contents are cleared before the new images are added. Stale
+  directories are not deleted.
+\item Both stochastic and non-stochastic rules are supported, as long as they
+  are not in the same cell.
+\item OCaml code can be run if the first line is \texttt{\%ocaml}.
+
+\item BigraphER API can be called from an OCaml cell. That requires two lines in
+  \texttt{.ocamlinit} to load stuff.
+\item Auto-complete and integrated documentation for BigraphER OCaml API (and
+  other OCaml code) using Merlin.
+\end{itemize}
+
+\section{Implementation}
+
+% TODO: Mixing of stochastic and non-stochastic rules is implemented like this:
+% when evaluating a cell, temporarily removing...
+
+\begin{itemize}
+\item Separate buffers for OCaml and BigraphER code.
+\item Tests with good code coverage.
+\item BigraphER's version along with OCaml version in the kernel's name.
+\item Dummies are implemented with random words that are not defined anywhere else.
+\item Code from buffer is written to a file, BigraphER is run to generate
+  images, file is deleted. BigraphER's output is captured, but not used, since
+  combining multiple cells results in warnings about multiple definitions.
+\item Directory permissions are $700$.
+\end{itemize}
+
+\section{Conclusion}
+
+\end{document}
