@@ -26,6 +26,8 @@ open Format
 open Jupyter
 open Utils
 
+type model = Incomplete | BRS | StochasticBRS
+
 let ocaml_buffer = Buffer.create 256
 let bigrapher_buffer = Buffer.create 256
 let ppf = formatter_of_buffer ocaml_buffer
@@ -166,16 +168,23 @@ let files_in_dir dirname =
   let full_filenames = Array.map (Filename.concat dirname) files in
   Array.to_list full_filenames
 
-(* Does this list of lines contain a begin-end block? *)
-let has_main_block lines =
-  List.exists (fun line -> String.length line > 5 &&
-                           Str.first_chars line 5 = "begin") lines
-
 (* Return the second word in the string, where keyword_length denotes the
    length of the first word *)
 let extract_name keyword_length line =
-  let end_of_name = String.index_from line (keyword_length + 1) ' ' in
+  let end_of_name =
+    try String.index_from line (keyword_length + 1) ' '
+    with Not_found -> String.length line
+  in
   String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
+
+(* Find the type of the model from a list of lines (including the 'incomplete'
+   option) *)
+let rec get_model_type = function
+  | [] -> Incomplete
+  | line :: remaining_lines ->
+    if String.length line > 5 && Str.first_chars line 5 = "begin" then
+      if extract_name 5 line = "sbrs" then StochasticBRS else BRS
+    else get_model_type remaining_lines
 
 (* For every row starting with the given keyword, return the second word *)
 let list_defined_entities keyword lines =
@@ -185,29 +194,28 @@ let list_defined_entities keyword lines =
       Str.first_chars line keyword_length = keyword) lines in
   List.map (extract_name keyword_length) relevant_lines
 
-(* If we find a line starting with 'react' with the name not in rules_to_keep,
-   remove everything up to the next semicolon *)
-let rec remove_reaction_rules_from_previous_cells rules_to_keep text =
+(* Is the reaction rule in text starting at first_index a stochastic rule? *)
+let is_stochastic text first_index =
+  let arrow = Str.regexp_string "->" in
+  let arrow_index = Str.search_forward arrow text first_index in
+  text.[arrow_index - 1] = ']'
+
+let rec remove_non_stochastic_rules text =
   let regular_expression = Str.regexp_string "react" in
   try
     let i = Str.search_forward regular_expression text 0 in
-    if i = 0 || text.[i - 1] = '\n' then
-      let name = extract_name (i + 5) text in
-      (* if the name of the reaction rule is in our rules_to_keep list, then
-         everything below it will be as well *)
-      if List.mem name rules_to_keep then text
-      else
-        let end_of_definition = String.index_from text i ';' in
-        let remaining_text = Str.string_after text (end_of_definition + 1) in
-        let text_before_reaction_rule = Str.string_before text i in
-        text_before_reaction_rule ^
-        remove_reaction_rules_from_previous_cells rules_to_keep remaining_text
+    if i = 0 || text.[i - 1] = '\n' && not (is_stochastic text i) then
+      (* remove the rule *)
+      let end_of_definition = String.index_from text i ';' in
+      let remaining_text = Str.string_after text (end_of_definition + 1) in
+      let text_before_reaction_rule = Str.string_before text i in
+      text_before_reaction_rule ^ remove_non_stochastic_rules remaining_text
     else
+      (* leave the rule as it is, and continue the search *)
       let second_letter_index = i + 1 in
       let text_before_react = Str.string_before text second_letter_index in
       let text_after_react = Str.string_after text second_letter_index in
-      text_before_react ^
-      remove_reaction_rules_from_previous_cells rules_to_keep text_after_react
+      text_before_react ^ remove_non_stochastic_rules text_after_react
   with Not_found -> text
 
 (* Generates a random (lowercase) string not in the given list. Candidate is
@@ -241,14 +249,18 @@ end\n"
       random_big random_react random_big in
   model ^ begin_end_block
 
-(* Extract code from the buffer, modifying it as necessary *)
-let code_of_buffer model_is_full bigraphs reaction_rules =
-  if model_is_full then Buffer.contents bigrapher_buffer
-  else
-    let all_code = Buffer.contents bigrapher_buffer in
-    let filtered_code = remove_reaction_rules_from_previous_cells reaction_rules
-        all_code in
-    complete_model bigraphs reaction_rules filtered_code
+(* Takes two lists of the names of bigraphs and reaction rules that have
+   already been defined and a model type. Adds a begin-end block if it is
+   missing. Removes non-stochastic reaction rules if we're given a stochastic
+   model. *)
+let code_of_buffer bigraphs reaction_rules = function
+  | BRS -> Buffer.contents bigrapher_buffer
+  | StochasticBRS ->
+    let code = Buffer.contents bigrapher_buffer in
+    remove_non_stochastic_rules code
+  | Incomplete ->
+    let code = Buffer.contents bigrapher_buffer in
+    complete_model bigraphs reaction_rules code
 
 (* If the directory exists, remove all files in it; if not, create it *)
 let prepare_directory_for_cell image_directory permissions count =
@@ -293,12 +305,12 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
     let lines = String.split_on_char '\n' code in
 
-    let model_is_full = has_main_block lines in
+    let model_type = get_model_type lines in
     let bigraphs = list_defined_entities "big" lines in
     let reaction_rules = list_defined_entities "react" lines in
 
     Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let contents = code_of_buffer model_is_full bigraphs reaction_rules in
+    let contents = code_of_buffer bigraphs reaction_rules model_type in
 
     let filename = write_code_to_file count contents in
     let command = Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname
@@ -310,7 +322,7 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
     | Unix.WEXITED 0 ->
       display_bigraphs send count dirname bigraphs ;
       display_reaction_rules send count dirname reaction_rules ;
-      if model_is_full then truncate_buffer code ;
+      if model_type <> Incomplete then truncate_buffer code ;
       safe_remove filename ;
       Shell.SHELL_OK
     | _ ->

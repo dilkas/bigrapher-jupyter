@@ -53,4 +53,4 @@ val eval_ocaml :
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
 
-val remove_reaction_rules_from_previous_cells : string list -> string -> string
+val remove_non_stochastic_rules : string -> string
