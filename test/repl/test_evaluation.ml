@@ -188,29 +188,6 @@ let test__ocaml_from_bigrapher ctxt =
                   Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
-(*let test__removing_reaction_rules_from_previous_cells ctxt =
-  let actual = eval_multiple ["ctrl Foo = 0;\
-                               \nreact foo = Foo -[0.5]-> Foo;";
-                              "react bar = Foo --> Foo;"] |> map_content in
-  let actual1 = List.nth actual 0 in
-  let actual2 = List.nth actual 2 in
-  let actual3 = List.nth actual 3 in
-  let actual4 = List.nth actual 5 in
-  let expected1 = Iopub (iopub_success ~count:0 "foo") in
-  let expected2 = Shell (execute_reply ~count:0 SHELL_OK) in
-  let expected3 = Iopub (iopub_success ~count:0 "bar") in
-  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
-  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
-  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3 ;
-  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual4*)
-
-(*let test__react_as_a_comment _ =
-  let code = "ctrl Foo = 0;\
-              \n# react harder >:(\
-              \nreact bar = Foo --> Foo;" in
-  let actual = remove_non_stochastic_rules code in
-  assert_equal ~printer:[%show: string] code actual*)
-
 let test__bigrapher_error ctxt =
   let actual = Eval_util.eval "!" |> map_content in
   let expected = [Iopub (stream ~name:IOPUB_STDERR "File '[0].big', line 1, \
@@ -238,7 +215,9 @@ let test__api_model ctxt =
 let test__stochastic_model ctxt =
   let actual = Eval_util.eval "ctrl Foo = 0;\
                                \nbig foo = Foo.1;\
+                               \n # react as part of a comment\
                                \nreact bar = foo -[0.5]-> foo;\
+                               \nreact baz = foo --> foo;\
                                \nbegin sbrs\
                                \n  init foo;\
                                \n  rules = [{bar}];\
@@ -271,9 +250,6 @@ let suite =
       "camlp4" >:: test__camlp4;
       "incomplete_model" >:: test__incomplete_model;
       "ocaml_from_bigrapher" >:: test__ocaml_from_bigrapher;
-      (*"removing_reaction_rules_from_previous_cells" >::
-        test__removing_reaction_rules_from_previous_cells;*)
-      (*"react_as_a_comment" >:: test__react_as_a_comment;*)
       "bigrapher_error" >:: test__bigrapher_error;
       "api_model" >:: test__api_model;
       "stochastic_model" >:: test__stochastic_model;

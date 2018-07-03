@@ -223,7 +223,7 @@ let rec remove_non_stochastic_rules text = function
           remove_non_stochastic_rules remaining_text other_rules in
         remaining_rules, text_before_reaction_rule ^ remaining_filtered_text
     else
-      (* keep the rule, but in a slightly different way *)
+      (* just keep looking... *)
       let second_letter_index = i + 1 in
       let text_before_react = Str.string_before text second_letter_index in
       let text_after_react = Str.string_after text second_letter_index in
