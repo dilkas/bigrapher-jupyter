@@ -233,6 +233,19 @@ let test__stochastic_model ctxt =
   assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
   assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3
 
+let test__clear_buffer ctxt =
+  let actual = Eval_util.eval_multiple ["ctrl Foo = 0;"; "%clear\
+                                                          \nbig foo = Foo.1;"]
+               |> map_content in
+  let expected = [Shell (execute_reply ~count:0 SHELL_OK);
+                  Iopub (stream ~name:IOPUB_STDERR
+                           "File '[0].big', line 1, characters 10-13\n");
+                  Iopub (stream ~name:IOPUB_STDERR
+                           "\x1b[01m\x1b[31mError\x1b[m\x1b[m: Unbound \
+                            variable Foo\n");
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -253,6 +266,7 @@ let suite =
       "bigrapher_error" >:: test__bigrapher_error;
       "api_model" >:: test__api_model;
       "stochastic_model" >:: test__stochastic_model;
+      "clear_buffer" >:: test__clear_buffer;
     ]
   ]
 

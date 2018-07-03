@@ -246,7 +246,7 @@ let rec generate_string_not_in list candidate =
 let complete_model bigraphs rules model =
   let taken_names = bigraphs @ rules in
   let random_big = generate_string_not_in taken_names "" in
-  let random_ctrl = generate_string_not_in taken_names "B" in
+  let random_ctrl = generate_string_not_in taken_names "C" in
   let random_react = generate_string_not_in (random_big :: taken_names) "" in
   let begin_end_block = Printf.sprintf
       "\n
@@ -306,12 +306,22 @@ let safe_remove filename =
   try Sys.remove filename
   with _ -> ()
 
+let starts_with text pattern =
+  let pattern_length = String.length pattern in
+  String.length text >= pattern_length &&
+  String.sub text 0 pattern_length = pattern
+
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
-let eval ?(error_ctx_size = 1) ~send ~count code =
-  if String.length code >= 7 && String.sub code 0 7 = "%ocaml\n"
-  then
+let rec eval ?(error_ctx_size = 1) ~send ~count code =
+  if starts_with code "%clear\n" then
+    begin
+      Buffer.clear bigrapher_buffer ;
+      let remaining_code = Str.string_after code 7 in
+      eval ~error_ctx_size ~send ~count remaining_code
+    end
+  else if starts_with code "%ocaml\n" then
     let remaining_code = Str.string_after code 7 in
     eval_ocaml ~error_ctx_size ~send ~count remaining_code
   else
