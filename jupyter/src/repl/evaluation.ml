@@ -200,23 +200,36 @@ let is_stochastic text first_index =
   let arrow_index = Str.search_forward arrow text first_index in
   text.[arrow_index - 1] = ']'
 
-let rec remove_non_stochastic_rules text =
-  let regular_expression = Str.regexp_string "react" in
-  try
+let rec remove_non_stochastic_rules text = function
+  | [] -> [], text
+  | (rule :: other_rules) as rules ->
+    let regular_expression = Str.regexp_string "react" in
     let i = Str.search_forward regular_expression text 0 in
-    if i = 0 || text.[i - 1] = '\n' && not (is_stochastic text i) then
-      (* remove the rule *)
-      let end_of_definition = String.index_from text i ';' in
-      let remaining_text = Str.string_after text (end_of_definition + 1) in
-      let text_before_reaction_rule = Str.string_before text i in
-      text_before_reaction_rule ^ remove_non_stochastic_rules remaining_text
+    if i = 0 || text.[i - 1] = '\n' then
+      if is_stochastic text i then
+        (* keep the rule *)
+        let second_letter_index = i + 1 in
+        let text_before_react = Str.string_before text second_letter_index in
+        let text_after_react = Str.string_after text second_letter_index in
+        let (remaining_rules, remaining_filtered_text) =
+          remove_non_stochastic_rules text_after_react other_rules in
+        rule :: remaining_rules, text_before_react ^ remaining_filtered_text
+      else
+        (* remove the rule *)
+        let end_of_definition = String.index_from text i ';' in
+        let remaining_text = Str.string_after text (end_of_definition + 1) in
+        let text_before_reaction_rule = Str.string_before text i in
+        let (remaining_rules, remaining_filtered_text) =
+          remove_non_stochastic_rules remaining_text other_rules in
+        remaining_rules, text_before_reaction_rule ^ remaining_filtered_text
     else
-      (* leave the rule as it is, and continue the search *)
+      (* keep the rule, but in a slightly different way *)
       let second_letter_index = i + 1 in
       let text_before_react = Str.string_before text second_letter_index in
       let text_after_react = Str.string_after text second_letter_index in
-      text_before_react ^ remove_non_stochastic_rules text_after_react
-  with Not_found -> text
+      let (remaining_rules, remaining_filtered_text) =
+        remove_non_stochastic_rules text_after_react rules in
+      remaining_rules, text_before_react ^ remaining_filtered_text
 
 (* Generates a random (lowercase) string not in the given list. Candidate is
    the initial attempt, can be empty. *)
@@ -254,13 +267,13 @@ end\n"
    missing. Removes non-stochastic reaction rules if we're given a stochastic
    model. *)
 let code_of_buffer bigraphs reaction_rules = function
-  | BRS -> Buffer.contents bigrapher_buffer
+  | BRS -> reaction_rules, Buffer.contents bigrapher_buffer
   | StochasticBRS ->
     let code = Buffer.contents bigrapher_buffer in
-    remove_non_stochastic_rules code
+    remove_non_stochastic_rules code reaction_rules
   | Incomplete ->
     let code = Buffer.contents bigrapher_buffer in
-    complete_model bigraphs reaction_rules code
+    reaction_rules, complete_model bigraphs reaction_rules code
 
 (* If the directory exists, remove all files in it; if not, create it *)
 let prepare_directory_for_cell image_directory permissions count =
@@ -307,10 +320,11 @@ let eval ?(error_ctx_size = 1) ~send ~count code =
 
     let model_type = get_model_type lines in
     let bigraphs = list_defined_entities "big" lines in
-    let reaction_rules = list_defined_entities "react" lines in
+    let unfiltered_reaction_rules = list_defined_entities "react" lines in
 
     Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let contents = code_of_buffer bigraphs reaction_rules model_type in
+    let (reaction_rules, contents) = code_of_buffer bigraphs
+        unfiltered_reaction_rules model_type in
 
     let filename = write_code_to_file count contents in
     let command = Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname

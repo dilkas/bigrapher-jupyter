@@ -235,6 +235,25 @@ let test__api_model ctxt =
                   Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
+let test__stochastic_model ctxt =
+  let actual = Eval_util.eval "ctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo -[0.5]-> foo;\
+                               \nbegin sbrs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               \nend" |> map_content in
+  let actual1 = List.nth actual 0 in
+  let actual2 = List.nth actual 2 in
+  let actual3 = List.nth actual 4 in
+  let expected1 = Iopub (iopub_success ~count:0 "foo") in
+  let expected2 = Iopub (iopub_success ~count:0 "bar") in
+  let expected3 = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: reply] expected1 actual1 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected2 actual2 ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected3 actual3
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -256,7 +275,8 @@ let suite =
         test__removing_reaction_rules_from_previous_cells;*)
       (*"react_as_a_comment" >:: test__react_as_a_comment;*)
       "bigrapher_error" >:: test__bigrapher_error;
-      "api_model" >:: test__api_model
+      "api_model" >:: test__api_model;
+      "stochastic_model" >:: test__stochastic_model;
     ]
   ]
 
