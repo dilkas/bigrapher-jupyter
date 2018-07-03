@@ -194,6 +194,11 @@ let list_defined_entities keyword lines =
       Str.first_chars line keyword_length = keyword) lines in
   List.map (extract_name keyword_length) relevant_lines
 
+let all_defined_entities lines =
+  List.fold_left (fun entities keyword ->
+      entities @ list_defined_entities keyword lines) []
+    ["float"; "int"; "ctrl"; "atomic ctrl"; "big"; "react"]
+
 (* Is the reaction rule in text starting at first_index a stochastic rule? *)
 let is_stochastic text first_index =
   let arrow = Str.regexp_string "->" in
@@ -243,8 +248,7 @@ let rec generate_string_not_in list candidate =
   else candidate
 
 (* Add a default begin-end block to an incomplete model *)
-let complete_model bigraphs rules model =
-  let taken_names = bigraphs @ rules in
+let complete_model taken_names model =
   let random_big = generate_string_not_in taken_names "" in
   let random_ctrl = generate_string_not_in taken_names "C" in
   let random_react = generate_string_not_in (random_big :: taken_names) "" in
@@ -266,14 +270,14 @@ end\n"
    already been defined and a model type. Adds a begin-end block if it is
    missing. Removes non-stochastic reaction rules if we're given a stochastic
    model. *)
-let code_of_buffer bigraphs reaction_rules = function
+let code_of_buffer taken_names reaction_rules = function
   | BRS -> reaction_rules, Buffer.contents bigrapher_buffer
   | StochasticBRS ->
     let code = Buffer.contents bigrapher_buffer in
     remove_non_stochastic_rules code reaction_rules
   | Incomplete ->
     let code = Buffer.contents bigrapher_buffer in
-    reaction_rules, complete_model bigraphs reaction_rules code
+    reaction_rules, complete_model taken_names code
 
 (* If the directory exists, remove all files in it; if not, create it *)
 let prepare_directory_for_cell image_directory permissions count =
@@ -306,6 +310,7 @@ let safe_remove filename =
   try Sys.remove filename
   with _ -> ()
 
+(* Does the text start with the pattern (a smaller string)? *)
 let starts_with text pattern =
   let pattern_length = String.length pattern in
   String.length text >= pattern_length &&
@@ -331,9 +336,10 @@ let rec eval ?(error_ctx_size = 1) ~send ~count code =
     let model_type = get_model_type lines in
     let bigraphs = list_defined_entities "big" lines in
     let unfiltered_reaction_rules = list_defined_entities "react" lines in
+    let taken_names = all_defined_entities lines in
 
     Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let (reaction_rules, contents) = code_of_buffer bigraphs
+    let (reaction_rules, contents) = code_of_buffer taken_names
         unfiltered_reaction_rules model_type in
 
     let filename = write_code_to_file count contents in

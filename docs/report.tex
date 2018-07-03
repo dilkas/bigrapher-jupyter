@@ -1,8 +1,12 @@
 \documentclass{article}
 \usepackage[UKenglish]{babel}
 \usepackage[UKenglish]{isodate}
+\usepackage[T1]{fontenc}
 \usepackage{url}
+\usepackage{textcomp}
+\usepackage{upquote}
 \usepackage{listings}
+\lstset{upquote=true}
 
 \author{Paulius Dilkas}
 \title{Towards User-Friendly Bigraphs}
@@ -19,11 +23,12 @@
 \subsection{Jupyter}
 
 Project Jupyter \cite{website:jupyter}, notebook \cite{website:docs}, kernel,
-OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell.
+OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell, magic.
 
 \subsection{Bigraphs and BigraphER}
 
-Bigraphs, BigraphER \cite{Sevegnani2016}
+Bigraphs, BigraphER\footnote{\url{http://www.dcs.gla.ac.uk/~michele/bigrapher.html}}
+\cite{Sevegnani2016}
 
 begin-end block, stochastic and non-stochastic reaction rules
 
@@ -45,8 +50,6 @@ with Python, not surprising the user with unexpected behaviour.
 \item Variables defined in one cell persist to the next (unless the cell
   contains a begin-end block or fails to run). This is done in the same order as
   the cells are run, including running the same cell multiple times.
-\item If a cell doesn't have a begin-end block, a dummy one is added (but does
-  not persist).
 \item The output of each cell corresponds to everything defined in that cell
   (bigraphs and reaction rules): name first, then diagrams.
 \item Reaction rules are visualised in an HTML table, connecting the diagrams
@@ -60,9 +63,16 @@ with Python, not surprising the user with unexpected behaviour.
 \item OCaml code can be run if the first line is \texttt{\%ocaml}.
 
 \item BigraphER API can be called from an OCaml cell. That requires two lines in
-  \texttt{.ocamlinit} to load stuff.
+  \texttt{.ocamlinit} to load stuff:
+  \begin{lstlisting}
+#use "topfind";;
+#require "bigraph";;
+  \end{lstlisting}
 \item Auto-complete and integrated documentation for BigraphER OCaml API (and
   other OCaml code) using Merlin.
+\item \texttt{\%clear} magic to clear the buffer before evaluating the current
+  cell. The motivation for this magic comes from the fact that multiple
+  control definitions (\texttt{ctrl}) cause errors rather than warnings.
 \end{itemize}
 
 \section{Implementation}
