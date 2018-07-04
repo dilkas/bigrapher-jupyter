@@ -7,8 +7,8 @@
                 Merlin
                 Intf))
   (flags       ((:include ${ROOT}/config/ocaml_flags.sexp)))
-  (preprocess  (pps (lwt.ppx)))
-  (preprocess (pps (bisect_ppx -conditional)))
+  (preprocess  (pps (lwt_ppx)))
+  (preprocess  (pps (bisect_ppx -conditional)))
   (libraries   (jupyter
                 jupyter_log
                 lwt
