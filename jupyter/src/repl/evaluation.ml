@@ -106,7 +106,7 @@ let eval_phrase ~filename phrase =
   Buffer.clear ocaml_buffer ;
   (is_ok, message)
 
-let eval_ocaml ?(error_ctx_size = 1) ~send ~count code =
+let eval_ocaml ?(_produce_output=false) ?(error_ctx_size = 1) ~send ~count code =
   let filename = sprintf "[%d]" count in
   let rec loop status = function
     | [] -> status
@@ -319,7 +319,7 @@ let starts_with text pattern =
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order (starting from 0). *)
-let rec eval ?(error_ctx_size = 1) ~send ~count code =
+let rec eval ?(_produce_output = false) ?(error_ctx_size = 1) ~send ~count code =
   if starts_with code "%clear\n" then
     begin
       Buffer.clear bigrapher_buffer ;
@@ -329,6 +329,9 @@ let rec eval ?(error_ctx_size = 1) ~send ~count code =
   else if starts_with code "%ocaml\n" then
     let remaining_code = Str.string_after code 7 in
     eval_ocaml ~error_ctx_size ~send ~count remaining_code
+  else if starts_with code "%output\n" then
+    let remaining_code = Str.string_after code 8 in
+    eval ~_produce_output:true ~error_ctx_size ~send ~count remaining_code
   else
     let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
     let lines = String.split_on_char '\n' code in
@@ -345,8 +348,9 @@ let rec eval ?(error_ctx_size = 1) ~send ~count code =
     let filename = write_code_to_file count contents in
     let command = Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname
         filename in
-    let channel, _ = capture_output command in
-    (*send (iopub_success ~count (Buffer.contents output_buffer)) ;*)
+    let channel, output_buffer = capture_output command in
+    if _produce_output then
+      send (iopub_success ~count (Buffer.contents output_buffer)) ;
 
     match Unix.close_process_in channel with
     | Unix.WEXITED 0 ->

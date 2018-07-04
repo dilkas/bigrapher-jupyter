@@ -93,11 +93,14 @@ let is_topfind_log = function
 
 (* A generalisation of eval and eval_multiple *)
 let inner_eval
+    ?(_produce_output = false)
     ?(ocaml_mode = false)
     ?(post_exec = lwt_ignore)
     ?init_file function_to_run code
   =
-  Process.set_ocaml_mode ocaml_mode ;
+  let process_mode = if ocaml_mode then Process.Ocaml
+    else Process.Bigrapher _produce_output in
+  Process.set_mode process_mode ;
   let repl = Process.create ?init_file () in
   let strm = Process.stream repl in
   Lwt_main.run begin
@@ -110,6 +113,7 @@ let inner_eval
 
 (* Evaluate a single code block *)
 let eval
+    ?(_produce_output = false)
     ?(ocaml_mode = false)
     ?(ctx = default_ctx)
     ?(post_exec = lwt_ignore)
@@ -118,7 +122,8 @@ let eval
   let evaluate_code repl code =
     Process.eval ~ctx ~count repl code
   in
-  inner_eval ~ocaml_mode ~post_exec ?init_file evaluate_code code
+  inner_eval ~_produce_output ~ocaml_mode ~post_exec ?init_file
+    evaluate_code code
 
 (* Evaluate multiple code blocks *)
 let eval_multiple

@@ -246,6 +246,19 @@ let test__clear_buffer ctxt =
                   Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
+let test__bigraphers_output ctxt =
+  let actual = Eval_util.eval "%output\
+                               \nctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo --> foo;\
+                               \nbegin brs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               \nend" |> map_content
+               |> List.length in
+  assert_equal ~ctxt ~printer:[%show: int] 6 actual
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -267,6 +280,7 @@ let suite =
       "api_model" >:: test__api_model;
       "stochastic_model" >:: test__stochastic_model;
       "clear_buffer" >:: test__clear_buffer;
+      "bigraphers_output" >:: test__bigraphers_output;
     ]
   ]
 

@@ -24,8 +24,8 @@
 
 type t
 
-(** Sets the interpretation mode to OCaml rather than BigraphER. *)
-val set_ocaml_mode : bool -> unit
+type mode = Bigrapher of bool | Ocaml
+val set_mode : mode -> unit
 
 (** Creates an OCaml REPL process.
 

@@ -31,13 +31,19 @@ type request =
   | REPL_QUIT
   | REPL_CODE of Shell.request Message.t * int * string
 
+type mode = Bigrapher of bool | Ocaml
+
 let flags = [] (* marshal flags *)
 
-let evaluation_eval = ref Evaluation.eval
+let current_mode = ref (Bigrapher false)
+let evaluation_eval = ref (Evaluation.eval ~_produce_output:false)
 
-let set_ocaml_mode = function
-  | true -> evaluation_eval := Evaluation.eval_ocaml
-  | false -> evaluation_eval := Evaluation.eval
+let set_mode new_mode =
+  current_mode := new_mode ;
+  match new_mode with
+  | Bigrapher _produce_output ->
+    evaluation_eval := Evaluation.eval ~_produce_output:_produce_output
+  | Ocaml -> evaluation_eval := Evaluation.eval_ocaml ~_produce_output:false
 
 (** {2 Child process} *)
 
@@ -61,7 +67,7 @@ let create_child_process
   let context = ref None in
   let preinit () =
     define_connection ~jupyterin ~jupyterout:ctrlout ~context ;
-    if !evaluation_eval == Evaluation.eval_ocaml then override_sys_params ()
+    if !current_mode = Ocaml then override_sys_params ()
   in
   Evaluation.init ?preload ~preinit ?init_file () ;
   let ctrlin = Unix.in_channel_of_descr ctrlin in

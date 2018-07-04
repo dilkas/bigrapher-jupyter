@@ -59,7 +59,8 @@ with Python, not surprising the user with unexpected behaviour.
 \item Both stochastic and non-stochastic rules are supported, as long as they
   are not in the same cell.
 \item OCaml code can be run if the first line is \texttt{\%ocaml}.
-
+\item Another magic (\texttt{\%output}) allows the user to see full BigraphER's
+  output, including warnings about multiple definitions.
 \item BigraphER API can be called from an OCaml cell. That requires two lines in
   \texttt{.ocamlinit} to load stuff:
   \begin{lstlisting}
@@ -71,6 +72,8 @@ with Python, not surprising the user with unexpected behaviour.
 \item \texttt{\%clear} magic to clear the buffer before evaluating the current
   cell. The motivation for this magic comes from the fact that multiple
   control definitions (\texttt{ctrl}) cause errors rather than warnings.
+\item The two BigraphER-specific magics can be used at the same time, provided
+  they are on the first two lines, in either order.
 \end{itemize}
 
 \section{Implementation}
@@ -81,8 +84,7 @@ with Python, not surprising the user with unexpected behaviour.
 \item BigraphER's version along with OCaml version in the kernel's name.
 \item Dummies are implemented with random words that are not defined anywhere else.
 \item Code from buffer is written to a file, BigraphER is run to generate
-  images, file is deleted. BigraphER's output is captured, but not used, since
-  combining multiple cells results in warnings about multiple definitions.
+  images, file is deleted.
 \item Directory permissions are $700$.
 \item \texttt{react} keyword is ignored if it's not at the start of a line.
 \item All images are saved in a directory \texttt{jupyter-images}, with a

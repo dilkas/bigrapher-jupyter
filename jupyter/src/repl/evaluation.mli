@@ -44,11 +44,13 @@ val iopub_interrupt : unit -> Jupyter.Iopub.reply
 (** {2 Execution} *)
 
 val eval :
+  ?_produce_output:bool ->
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
 
 val eval_ocaml :
+  ?_produce_output:bool ->
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
