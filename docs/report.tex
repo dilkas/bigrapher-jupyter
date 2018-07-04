@@ -23,11 +23,13 @@
 \subsection{Jupyter}
 
 Project Jupyter \cite{website:jupyter}, notebook \cite{website:docs}, kernel,
-OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell, magic.
+OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell, magic
+\cite{website:magic}.
 
 \subsection{Bigraphs and BigraphER}
 
-Bigraphs, BigraphER\footnote{\url{http://www.dcs.gla.ac.uk/~michele/bigrapher.html}}
+Bigraphs,
+BigraphER\footnote{\url{http://www.dcs.gla.ac.uk/~michele/bigrapher.html}}
 \cite{Sevegnani2016}
 
 begin-end block, stochastic and non-stochastic reaction rules
@@ -54,10 +56,6 @@ with Python, not surprising the user with unexpected behaviour.
   (bigraphs and reaction rules): name first, then diagrams.
 \item Reaction rules are visualised in an HTML table, connecting the diagrams
   side-by-side.
-\item All images are saved in a directory \texttt{jupyter-images}, with a
-  subdirectory for each cell. If a subdirectory doesn't exist, it is created.
-  Otherwise, its contents are cleared before the new images are added. Stale
-  directories are not deleted.
 \item Both stochastic and non-stochastic rules are supported, as long as they
   are not in the same cell.
 \item OCaml code can be run if the first line is \texttt{\%ocaml}.
@@ -87,6 +85,10 @@ with Python, not surprising the user with unexpected behaviour.
   combining multiple cells results in warnings about multiple definitions.
 \item Directory permissions are $700$.
 \item \texttt{react} keyword is ignored if it's not at the start of a line.
+\item All images are saved in a directory \texttt{jupyter-images}, with a
+  subdirectory for each cell. If a subdirectory doesn't exist, it is created.
+  Otherwise, its contents are cleared before the new images are added. Stale
+  directories are not deleted.
 \end{itemize}
 
 When evaluating a cell, we look for a begin-end block in a top-down
