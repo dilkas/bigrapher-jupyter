@@ -10,12 +10,12 @@
                 -short-paths))))
 
 (library
- ((name       utils)
-  (synopsis   "Functions used in multiple places")
-  (modes      (byte))
-  (modules    (Utils))
-  (preprocess (pps (bisect_ppx -conditional)))
-  (libraries  (unix))))
+ ((name        utils)
+  (synopsis    "Functions used in multiple places")
+  (modes       (byte))
+  (modules     (Utils))
+  (preprocess  (pps (bisect_ppx -conditional)))
+  (libraries   (unix))))
 
 ;;
 ;; Common OCaml flags: ocaml_flags.sexp, ocaml_test_flags.sexp

@@ -23,8 +23,7 @@
 \subsection{Jupyter}
 
 Project Jupyter \cite{website:jupyter}, notebook \cite{website:docs}, kernel,
-OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell, magic
-\cite{website:magic}.
+OCaml kernel\footnote{\url{https://github.com/akabe/ocaml-jupyter}}, cell.
 
 \subsection{Bigraphs and BigraphER}
 
@@ -47,7 +46,6 @@ with Python, not surprising the user with unexpected behaviour.
 
 \section{Features}
 
-% TODO: examples of error handling
 \begin{itemize}
 \item Variables defined in one cell persist to the next (unless the cell
   contains a begin-end block or fails to run). This is done in the same order as
@@ -58,31 +56,52 @@ with Python, not surprising the user with unexpected behaviour.
   side-by-side.
 \item Both stochastic and non-stochastic rules are supported, as long as they
   are not in the same cell.
-\item OCaml code can be run if the first line is \texttt{\%ocaml}.
-\item Another magic (\texttt{\%output}) allows the user to see full BigraphER's
-  output, including warnings about multiple definitions.
-\item BigraphER API can be called from an OCaml cell. That requires two lines in
-  \texttt{.ocamlinit} to load stuff:
+\item BigraphER API can be called from an OCaml cell. In order to make it work,
+  two lines must be added to \texttt{~/.ocamlinit}:
   \begin{lstlisting}
 #use "topfind";;
 #require "bigraph";;
   \end{lstlisting}
+  Then... %TODO: example
 \item Auto-complete and integrated documentation for BigraphER OCaml API (and
   other OCaml code) using Merlin.
-\item \texttt{\%clear} magic to clear the buffer before evaluating the current
-  cell. The motivation for this magic comes from the fact that multiple
-  control definitions (\texttt{ctrl}) cause errors rather than warnings.
 \item The two BigraphER-specific magics can be used at the same time, provided
   they are on the first two lines, in either order.
 \end{itemize}
 
+\subsection{Magics}
+
+The IPython kernel defines a number of magics, i.e., additional commands that
+are not part of the underlying language (Python) \cite{website:magic}.
+Similarly, we define several magics for our kernel, however, their use is
+significantly restricted:
+\begin{itemize}
+\item A magic occupies its own line.
+\item All magics are listed before any other code. For example, when using two
+  magics, they must be on lines one and two.
+\item Magics must not be indented.
+\end{itemize}
+
+The first magic allows full backwards compatibility with the OCaml kernel. If
+the first line of a cell reads \texttt{\%ocaml}, subsequent lines will be
+interpreted as OCaml code, including Merlin-based autocomplete and documentation
+tooltips as well as Archimedes plots.
+
+BigraphER's output is hidden by default, since typical Jupyter workflow is
+likely to cause numerous warnings about multiple definitions of the same
+variable. However, full output can be enabled with the magic \texttt{\%output}.
+
+Since in most cases code from previously run cells is prepended to the current
+cell before evaluation, and multiple control (\texttt{ctrl}) definitions can
+cause errors rather than warnings, \texttt{\%clear} magic can be used to empty
+the buffer before evaluating the current cell, thus allowing the user to
+redefine any variables with no issues.
+
 \section{Implementation}
 
 \begin{itemize}
-\item Separate buffers for OCaml and BigraphER code.
-\item Tests with good code coverage.
-\item BigraphER's version along with OCaml version in the kernel's name.
-\item Dummies are implemented with random words that are not defined anywhere else.
+\item Separate buffers are used for OCaml and BigraphER code, allowing the user
+  to seamlessly mix the two languages, as if they were in different notebooks.
 \item Code from buffer is written to a file, BigraphER is run to generate
   images, file is deleted.
 \item Directory permissions are $700$.

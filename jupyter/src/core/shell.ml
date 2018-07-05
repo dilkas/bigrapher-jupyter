@@ -151,12 +151,12 @@ type language_info =
 
 let language_info =
   {
-    lang_name = "OCaml";
+    lang_name = "Big";
     lang_version = Sys.ocaml_version;
-    lang_mimetype = "text/x-ocaml";
-    lang_file_ext = ".ml";
-    lang_lexer = Some "OCaml";
-    lang_mode = `String "text/x-ocaml";
+    lang_mimetype = "text/plain";
+    lang_file_ext = ".big";
+    lang_lexer = Some "Big";
+    lang_mode = `String "text/plain";
     lang_exporter = None;
   }
 
@@ -192,7 +192,7 @@ let kernel_info_reply =
     kernel_impl_ver = Version.version;
     kernel_banner = None;
     kernel_help_links = help_links;
-    kernel_lang = "OCaml";
+    kernel_lang = "Big";
     kernel_lang_info = language_info;
   }
 
