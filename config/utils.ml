@@ -11,7 +11,7 @@ let capture_output command =
   end ;
   channel, output_buffer
 
-let bigrapher_version =
+let bigrapher_version () =
   let channel, buffer = capture_output "bigrapher -V" in
   let _ = Unix.close_process_in channel in
   let contents = Buffer.contents buffer in

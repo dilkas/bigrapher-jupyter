@@ -153,10 +153,10 @@ let language_info =
   {
     lang_name = "Big";
     lang_version = Sys.ocaml_version;
-    lang_mimetype = "text/plain";
+    lang_mimetype = "text/x-big";
     lang_file_ext = ".big";
     lang_lexer = Some "Big";
-    lang_mode = `String "text/plain";
+    lang_mode = `String "big";
     lang_exporter = None;
   }
 
