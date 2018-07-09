@@ -27,6 +27,7 @@ open Jupyter
 open Utils
 
 type model = Incomplete | BRS | StochasticBRS
+type subcommand = Full | Sim of int | Validate
 
 let ocaml_buffer = Buffer.create 256
 let bigrapher_buffer = Buffer.create 256
@@ -316,10 +317,69 @@ let starts_with text pattern =
   String.length text >= pattern_length &&
   String.sub text 0 pattern_length = pattern
 
+let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
+  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
+  let lines = String.split_on_char '\n' code in
+
+  if mode <> Validate && get_model_type lines = Incomplete then
+    begin
+      send (Iopub.error ~value:"runtime_error"
+              ["Incomplete models cannot be run \
+                in %states or %simulate mode"]) ;
+      Shell.SHELL_ERROR
+    end
+  else
+    let model_type = get_model_type lines in
+    let bigraphs = list_defined_entities "big" lines in
+    let unfiltered_reaction_rules = list_defined_entities "react" lines in
+    let taken_names = all_defined_entities lines in
+
+    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+    let (reaction_rules, contents) = code_of_buffer taken_names
+        unfiltered_reaction_rules model_type in
+
+    let code_filename = write_code_to_file count contents in
+    let filename = Printf.sprintf "[%d]" count in
+    let image_filename = Filename.concat dirname filename in
+    let command = match mode with
+      | Full -> Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
+                  image_filename code_filename
+      | Sim n -> Printf.sprintf "bigrapher sim -t %s -f svg -S %d %s"
+                   image_filename n code_filename
+      | Validate -> Printf.sprintf "bigrapher validate -d %s -f svg %s"
+                      dirname code_filename 
+    in
+    let channel, output_buffer = capture_output command in
+    if _produce_output then
+      send (iopub_success ~count (Buffer.contents output_buffer)) ;
+
+    match Unix.close_process_in channel with
+    | Unix.WEXITED 0 ->
+      begin
+        match mode with
+        | Full ->
+          image_filename ^ ".svg"
+          |> Jupyter_notebook.display_file "image/svg+xml" 
+          |> ignore
+        | Sim _ -> display_bigraphs send count dirname bigraphs
+        | Validate ->
+          display_bigraphs send count dirname bigraphs ;
+          display_reaction_rules send count dirname reaction_rules
+      end ;
+      if model_type <> Incomplete then truncate_buffer code ;
+      safe_remove code_filename ;
+      Shell.SHELL_OK
+    | _ ->
+      truncate_buffer code ;
+      safe_remove code_filename ;
+      Shell.SHELL_ERROR
+
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
-   Count - the number of the cell according to the run order (starting from 0). *)
-let rec eval ?(_produce_output = false) ?(error_ctx_size = 1) ~send ~count code =
+   Count - the number of the cell according to the run order
+   (starting from 0). *)
+let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
+    ~send ~count code =
   if starts_with code "%clear\n" then
     begin
       Buffer.clear bigrapher_buffer ;
@@ -332,34 +392,10 @@ let rec eval ?(_produce_output = false) ?(error_ctx_size = 1) ~send ~count code 
   else if starts_with code "%output\n" then
     let remaining_code = Str.string_after code 8 in
     eval ~_produce_output:true ~error_ctx_size ~send ~count remaining_code
+  else if starts_with code "%states\n" then
+    let remaining_code = Str.string_after code 8 in
+    run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
+  else if starts_with code "%simulate" then
+    run_bigrapher ~_produce_output ~mode:(Sim 1) ~send ~count code
   else
-    let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
-    let lines = String.split_on_char '\n' code in
-
-    let model_type = get_model_type lines in
-    let bigraphs = list_defined_entities "big" lines in
-    let unfiltered_reaction_rules = list_defined_entities "react" lines in
-    let taken_names = all_defined_entities lines in
-
-    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let (reaction_rules, contents) = code_of_buffer taken_names
-        unfiltered_reaction_rules model_type in
-
-    let filename = write_code_to_file count contents in
-    let command = Printf.sprintf "bigrapher validate -d %s -f svg %s" dirname
-        filename in
-    let channel, output_buffer = capture_output command in
-    if _produce_output then
-      send (iopub_success ~count (Buffer.contents output_buffer)) ;
-
-    match Unix.close_process_in channel with
-    | Unix.WEXITED 0 ->
-      display_bigraphs send count dirname bigraphs ;
-      display_reaction_rules send count dirname reaction_rules ;
-      if model_type <> Incomplete then truncate_buffer code ;
-      safe_remove filename ;
-      Shell.SHELL_OK
-    | _ ->
-      truncate_buffer code ;
-      safe_remove filename ;
-      Shell.SHELL_ERROR
+    run_bigrapher ~_produce_output ~mode:Validate ~send ~count code
