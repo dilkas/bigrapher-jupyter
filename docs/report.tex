@@ -70,6 +70,13 @@ with Python, not surprising the user with unexpected behaviour.
 \item Syntax highlighting! Need to copy \texttt{big.js} to
   \path{/usr/lib/python3.6/site-packages/notebook/static/components/codemirror/mode/big}.
   % TODO: could talk more about what's highlighted
+  \item State diagrams, where node labels show all applicable predicates (or the
+    ID of the state, if none), and edge labels show both the rate/probability
+    (in case of a stochastic/probabilistic system) and all reaction rules that
+    could lead to that state. Hovering over a node will show a preview of the
+    state, clicking on a node will show the full image. In order for this to
+    work, copy the \texttt{custom} directory over to
+    \texttt{$\sim$/.jupyter}.
 \end{itemize}
 
 \subsection{Magics}
