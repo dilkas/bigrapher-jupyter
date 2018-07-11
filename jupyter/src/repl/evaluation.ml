@@ -26,7 +26,7 @@ open Format
 open Jupyter
 open Utils
 
-type model = Incomplete | BRS | StochasticBRS
+type model = Incomplete | Deterministic | Probabilistic | Stochastic
 type subcommand = | Full
                   | SimulationTime of float
                   | SimulationSteps of int
@@ -188,7 +188,10 @@ let rec get_model_type = function
   | [] -> Incomplete
   | line :: remaining_lines ->
     if String.length line > 5 && Str.first_chars line 5 = "begin" then
-      if extract_name 5 line = "sbrs" then StochasticBRS else BRS
+      match extract_name 5 line with
+      | "pbrs" -> Probabilistic
+      | "sbrs" -> Stochastic
+      | _      -> Deterministic
     else get_model_type remaining_lines
 
 (* For every row starting with the given keyword, return the second word *)
@@ -276,8 +279,9 @@ end\n"
    missing. Removes non-stochastic reaction rules if we're given a stochastic
    model. *)
 let code_of_buffer taken_names reaction_rules = function
-  | BRS -> reaction_rules, Buffer.contents bigrapher_buffer
-  | StochasticBRS ->
+  | Deterministic -> reaction_rules, Buffer.contents bigrapher_buffer
+  | Probabilistic
+  | Stochastic ->
     let code = Buffer.contents bigrapher_buffer in
     remove_non_stochastic_rules code reaction_rules
   | Incomplete ->
@@ -389,6 +393,7 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
    (starting from 0). *)
 let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
     ~send ~count code =
+  let model_type = String.split_on_char '\n' code |> get_model_type in
   if starts_with code "%clear\n" then
     begin
       Buffer.clear bigrapher_buffer ;
@@ -406,22 +411,37 @@ let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
     run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
   else if starts_with code "%simulate" then
     let argument = extract_name 9 code in
-      let end_of_line = String.index code '\n' in
+    let end_of_line = String.index code '\n' in
     let remaining_code = Str.string_after code (end_of_line + 1) in
-    try
-      let num_steps = int_of_string argument in
-      let mode = SimulationSteps num_steps in
-      run_bigrapher ~_produce_output ~mode ~send ~count remaining_code ;
-    with Failure _ -> try
-        let simulation_time = float_of_string argument in
-        let mode = SimulationTime simulation_time in
-        run_bigrapher ~_produce_output ~mode ~send ~count remaining_code ;
+    match model_type with
+    | Incomplete ->
+      send (Iopub.error ~value:"runtime_error"
+              ["You need a begin-end block in order to run a simulation"]) ;
+      Shell.SHELL_ERROR
+    | Stochastic ->
+      begin
+        try
+          let simulation_time = float_of_string argument in
+          let mode = SimulationTime simulation_time in
+          run_bigrapher ~_produce_output ~mode ~send ~count remaining_code
+        with Failure _ ->
+          send (Iopub.error ~value:"runtime_error"
+                  ["For a stochastic system, %simulate should be followed by \
+                    the maximum simulation time (as a floating-point \
+                    number)"]) ;
+          Shell.SHELL_ERROR
+      end
+    | Deterministic
+    | Probabilistic ->
+      try
+        let num_steps = int_of_string argument in
+        let mode = SimulationSteps num_steps in
+        run_bigrapher ~_produce_output ~mode ~send ~count remaining_code
       with Failure _ ->
         send (Iopub.error ~value:"runtime_error"
-              ["%simulate magic should be followed by a number: simulation \
-                time (as a floating-point number) for stochastic systems, and \
-                number of simulation steps for deterministic and probabilistic \
-                systems." ^ argument]) ;
+                ["For a deterministic or probabilistic model, %simulate \
+                  should be followed by the maximum number of simulation \
+                  steps (as a non-negative integer)"]) ;
         Shell.SHELL_ERROR
   else
     run_bigrapher ~_produce_output ~mode:Validate ~send ~count code
