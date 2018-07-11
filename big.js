@@ -10,30 +10,34 @@
 
 CodeMirror.defineSimpleMode("big", {
     start: [
-        {regex: /\b(?:float|int|atomic ctrl|ctrl|big|react)\b/,
-         token: "keyword"},
-        {regex: /\b(?:share|by|in)\b/, token: "atom"},
-        {regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i,
-         token: "number"},
+	{regex: /\d[\d_]*|inf|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?/,
+		token: "number"},
+	{regex: /\b(?:ctrl|atomic|big|react|int|float|fun|id|merge|split)\b/,
+		token: "keyword"},
+	{regex: /\b(?:share|by|in|init|rules|preds)\b/, token: "atom"},
         {regex: /#.*/, token: "comment"},
-        {regex: /\/(?:[^\\]|\\.)*?\//, token: "variable-3"},
-        {regex: /[-+\/*=<>!]+/, token: "operator"},
-        {regex: /begin (?:brs|pbrs|sbrs)/, token: "keyword", next: "system"},
+	{regex: /(?:->|-->|-[|]->|[=\|@+\-*/^])+/, token: "operator"},
+        {regex: /begin (?:brs|pbrs|sbrs)/, token: "keyword", next: "system",
+		indent: true},
         {regex: /\{/, next: "name"},
-        {regex: /[\{\[\(]/, indent: true},
-        {regex: /[\}\]\)]/, dedent: true},
-        {regex: /[a-z$][\w$]*/, token: "variable"},
         {regex: /%ocaml/, token: "meta", mode: {spec: "mllike"}},
-        {regex: /%\w+/, token: "meta"}
+        {regex: /%\w+/, token: "meta"},
+	{regex: /[a-zA-Z][\w_']*/, token: "variable"}
     ],
     name: [
         {regex: /\}/, next: "start"},
-        {regex: /[a-z]\w*/, token: "string"}
+        {regex: /[a-z][\w_']*/, token: "string"}
     ],
     system: [
-        {regex: /end/, token: "keyword", next: "start"},
-        {regex: /\b(?:init|rules|preds)/, token: "atom"},
-        {regex: /=/, token: "operator"}
+        {regex: /end/, token: "keyword", next: "start", dedent: true},
+	{regex: /\d[\d_]*|inf|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?/,
+		token: "number"},
+	{regex: /\b(?:ctrl|atomic|big|react|int|float|fun|id|merge|split)\b/,
+		token: "keyword"},
+	{regex: /\b(?:share|by|in|init|rules|preds)\b/, token: "atom"},
+        {regex: /#.*/, token: "comment"},
+	{regex: /(?:->|-->|-[|]->|[=\|@+\-*/^])+/, token: "operator"},
+	{regex: /[a-zA-Z][\w_']*/, token: "variable"}
     ],
     meta: {
         lineComment: "#"
