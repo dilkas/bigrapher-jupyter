@@ -27,7 +27,10 @@ open Jupyter
 open Utils
 
 type model = Incomplete | BRS | StochasticBRS
-type subcommand = Full | Sim of int | Validate
+type subcommand = | Full
+                  | SimulationTime of float
+                  | SimulationSteps of int
+                  | Validate
 
 let ocaml_buffer = Buffer.create 256
 let bigrapher_buffer = Buffer.create 256
@@ -171,12 +174,13 @@ let files_in_dir dirname =
 
 (* Return the second word in the string, where keyword_length denotes the
    length of the first word *)
-let extract_name keyword_length line =
+let extract_name keyword_length str =
+  let whitespace = Str.regexp "[ \n]" in
   let end_of_name =
-    try String.index_from line (keyword_length + 1) ' '
-    with Not_found -> String.length line
+    try Str.search_forward whitespace str (keyword_length + 1)
+    with Not_found -> String.length str
   in
-  String.sub line (keyword_length + 1) (end_of_name - keyword_length - 1)
+  String.sub str (keyword_length + 1) (end_of_name - keyword_length - 1)
 
 (* Find the type of the model from a list of lines (including the 'incomplete'
    option) *)
@@ -320,8 +324,9 @@ let starts_with text pattern =
 let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
   let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
   let lines = String.split_on_char '\n' code in
+  let model_type = get_model_type lines in
 
-  if mode <> Validate && get_model_type lines = Incomplete then
+  if mode <> Validate && model_type = Incomplete then
     begin
       send (Iopub.error ~value:"runtime_error"
               ["Incomplete models cannot be run \
@@ -329,7 +334,6 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
       Shell.SHELL_ERROR
     end
   else
-    let model_type = get_model_type lines in
     let bigraphs = list_defined_entities "big" lines in
     let unfiltered_reaction_rules = list_defined_entities "react" lines in
     let taken_names = all_defined_entities lines in
@@ -342,12 +346,18 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
     let filename = Printf.sprintf "[%d]" count in
     let image_filename = Filename.concat dirname filename in
     let command = match mode with
-      | Full -> Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
-                  image_filename code_filename
-      | Sim n -> Printf.sprintf "bigrapher sim -t %s -f svg -S %d %s"
-                   image_filename n code_filename
-      | Validate -> Printf.sprintf "bigrapher validate -d %s -f svg %s"
-                      dirname code_filename 
+      | Full ->
+        Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
+          image_filename code_filename
+      | SimulationSteps n ->
+        Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
+          image_filename n code_filename
+      | SimulationTime t ->
+        Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
+          image_filename t code_filename
+      | Validate ->
+        Printf.sprintf "bigrapher validate -d %s -f svg %s"
+          dirname code_filename 
     in
     let channel, output_buffer = capture_output command in
     if _produce_output then
@@ -357,14 +367,13 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
     | Unix.WEXITED 0 ->
       begin
         match mode with
-        | Full ->
-          image_filename ^ ".svg"
-          |> Jupyter_notebook.display_file "image/svg+xml" 
-          |> ignore
-        | Sim _ -> display_bigraphs send count dirname bigraphs
         | Validate ->
           display_bigraphs send count dirname bigraphs ;
           display_reaction_rules send count dirname reaction_rules
+        | _ ->
+          image_filename ^ ".svg"
+          |> Jupyter_notebook.display_file "image/svg+xml" 
+          |> ignore
       end ;
       if model_type <> Incomplete then truncate_buffer code ;
       safe_remove code_filename ;
@@ -396,6 +405,23 @@ let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
     let remaining_code = Str.string_after code 8 in
     run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
   else if starts_with code "%simulate" then
-    run_bigrapher ~_produce_output ~mode:(Sim 1) ~send ~count code
+    let argument = extract_name 9 code in
+      let end_of_line = String.index code '\n' in
+    let remaining_code = Str.string_after code (end_of_line + 1) in
+    try
+      let num_steps = int_of_string argument in
+      let mode = SimulationSteps num_steps in
+      run_bigrapher ~_produce_output ~mode ~send ~count remaining_code ;
+    with Failure _ -> try
+        let simulation_time = float_of_string argument in
+        let mode = SimulationTime simulation_time in
+        run_bigrapher ~_produce_output ~mode ~send ~count remaining_code ;
+      with Failure _ ->
+        send (Iopub.error ~value:"runtime_error"
+              ["%simulate magic should be followed by a number: simulation \
+                time (as a floating-point number) for stochastic systems, and \
+                number of simulation steps for deterministic and probabilistic \
+                systems." ^ argument]) ;
+        Shell.SHELL_ERROR
   else
     run_bigrapher ~_produce_output ~mode:Validate ~send ~count code

@@ -70,13 +70,13 @@ with Python, not surprising the user with unexpected behaviour.
 \item Syntax highlighting! Need to copy \texttt{big.js} to
   \path{/usr/lib/python3.6/site-packages/notebook/static/components/codemirror/mode/big}.
   % TODO: could talk more about what's highlighted
-  \item State diagrams, where node labels show all applicable predicates (or the
-    ID of the state, if none), and edge labels show both the rate/probability
-    (in case of a stochastic/probabilistic system) and all reaction rules that
-    could lead to that state. Hovering over a node will show a preview of the
-    state, clicking on a node will show the full image. In order for this to
-    work, copy the \texttt{custom} directory over to
-    \texttt{$\sim$/.jupyter}.
+\item State diagrams, where node labels show all applicable predicates (or the
+  ID of the state, if none), and edge labels show both the rate/probability
+  (in case of a stochastic/probabilistic system) and all reaction rules that
+  could lead to that state. Hovering over a node will show a preview of the
+  state, clicking on a node will show the full image. In order for this to
+  work, copy the \texttt{custom} directory over to
+  \texttt{$\sim$/.jupyter}.
 \end{itemize}
 
 \subsection{Magics}
@@ -106,6 +106,13 @@ cell before evaluation, and multiple control (\texttt{ctrl}) definitions can
 cause errors rather than warnings, \texttt{\%clear} magic can be used to empty
 the buffer before evaluating the current cell, thus allowing the user to
 redefine any variables with no issues.
+
+State diagrams are available with the \texttt{\%states} magic. A similar
+functionality is also available for simulations, using \texttt{\%simulate}. This
+magic should be followed by a number. If the model is stochastic, that
+(floating-point) number should define the maximum simulation time. Otherwise, it
+should be a non-negative integer, and denote the maximum number of simulation
+steps.
 
 \section{Implementation}
 
