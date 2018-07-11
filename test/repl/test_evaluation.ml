@@ -37,32 +37,32 @@ let eval = eval ~ocaml_mode:true
 let test__simple_phrase ctxt =
   let actual = eval "let x = (4 + 1) * 3" |> map_content in
   let expected = [Iopub (iopub_success ~count:0 "val x : int = 15\n");
-                 Shell (execute_reply ~count:0 SHELL_OK)] in
+                  Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__multiple_phrases ctxt =
   let actual = eval "let x = (4 + 1) * 3\n\
-       let y = \"Hello \" ^ \"World\"\n\
-       let z = List.map (fun x -> x * 2) [1; 2; 3]\n" |> map_content in
+                     let y = \"Hello \" ^ \"World\"\n\
+                     let z = List.map (fun x -> x * 2) [1; 2; 3]\n" |> map_content in
   let expected = [
     Iopub (iopub_success ~count:0 "val x : int = 15\n");
     Iopub (iopub_success ~count:0 "val y : string = \"Hello World\"\n");
     Iopub (iopub_success ~count:0 "val z : int list = [2; 4; 6]\n");
     Shell (execute_reply ~count:0 SHELL_OK)
-    ] in
+  ] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__directive ctxt =
   let actual = eval "#load \"str.cma\" ;; Str.regexp \".*\"" |> map_content in
   let expected = [Iopub (iopub_success ~count:0 "- : Str.regexp = <abstr>\n");
-                 Shell (execute_reply ~count:0 SHELL_OK)] in
+                  Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__external_command ctxt =
   let actual = eval "Sys.command \"ls -l >/dev/null 2>/dev/null\""
                |> map_content in
   let expected = [Iopub (iopub_success ~count:0 "- : int = 0\n");
-                 Shell (execute_reply ~count:0 SHELL_OK)] in
+                  Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__syntax_error ctxt =
@@ -95,7 +95,7 @@ let test__type_error ctxt =
                 expression was expected of type\
                 \n         int\
                 \n\x1b[36m   1: \x1b[30m42 = \x1b[4mtrue\x1b[0m\n"]);
-    Shell (execute_reply ~count:123 SHELL_ERROR)] in
+     Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__long_error_message ctxt =
@@ -112,7 +112,7 @@ let test__long_error_message ctxt =
                 \n\x1b[36m   2: \x1b[30mlet b = 43 in\
                 \n\x1b[36m   3: \x1b[30mlet c = \x1b[4mfoo\x1b[0m\x1b[30m in\
                 \n\x1b[36m   4: \x1b[30mlet d = 44 in\x1b[0m\n"]);
-    Shell (execute_reply ~count:123 SHELL_ERROR)] in
+     Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual ;
   let actual = eval ~count:123 "List.\n dummy" |> map_content in
   let expected =
@@ -121,7 +121,7 @@ let test__long_error_message ctxt =
                 \n\x1b[31mError: Unbound value List.dummy\
                 \n\x1b[36m   1: \x1b[30m\x1b[4mList.\x1b[0m\
                 \n\x1b[36m   2: \x1b[30m\x1b[4m dummy\x1b[0m\n"]);
-    Shell (execute_reply ~count:123 SHELL_ERROR)] in
+     Shell (execute_reply ~count:123 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__exception ctxt =
@@ -135,14 +135,14 @@ let test__exception ctxt =
           17-56\n\x1b[0m"
   in
   let expected = [Iopub (error ~value:"runtime_error" [msg]);
-                 Shell (execute_reply ~count:0 SHELL_ERROR)] in
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__unknown_directive ctxt =
   let actual = eval "#foo" |> map_content in
   let expected = [Iopub (error ~value:"runtime_error"
                            ["\x1b[31mUnknown directive `foo'.\n\x1b[0m"]);
-                 Shell (execute_reply ~count:0 SHELL_ERROR)] in
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__ppx ctxt =
@@ -154,7 +154,7 @@ let test__ppx ctxt =
                val pp : Format.formatter -> t -> Ppx_deriving_runtime.unit = \
                <fun>\n\
                val show : t -> Ppx_deriving_runtime.string = <fun>\n");
-    Shell (execute_reply ~count:0 SHELL_OK)] in
+     Shell (execute_reply ~count:0 SHELL_OK)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
 let test__camlp4 ctxt =
@@ -259,6 +259,116 @@ let test__bigraphers_output ctxt =
                |> List.length in
   assert_equal ~ctxt ~printer:[%show: int] 6 actual
 
+let test__probabilistic_model_simulation ctxt =
+  let actual = Eval_util.eval "%simulate 0\
+                               \natomic ctrl M = 1;\
+                               \nctrl R = 0;\
+                               \nctrl B = 0;\
+                               \nctrl Out = 1;\
+                               \nbig s0 =\
+                               \nB.(R.M{x} | R.M{x} | R.1 | M{x}) || Out{y}.1;\
+                               \nfloat p_enter = 0.2;\
+                               \nreact enter_room =\
+                               \nR | M{x} -[p_enter]-> R.(M{x} | id);\
+                               \nreact leave_room =\
+                               \nR.(M{x} | id) -[1. - p_enter]-> R | M{x};\
+                               \nreact leave_building =\
+                               \nB.(M{x} | id) || Out{y} -[0.3]-> \
+                               B | {x} || Out{y}.(id | M{y});\
+                               \nbegin pbrs\
+                               \ninit s0;\
+                               \nrules = [ { enter_room, leave_room, \
+                               \nleave_building } ];\
+                               end" |> map_content in
+  let actual1 = List.nth actual 1 in
+  let actual_length = List.length actual in
+  let expected = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: int] 2 actual_length ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected actual1
+
+let test__incomplete_model_state_diagram ctxt =
+  let actual = Eval_util.eval "%states\n" |> map_content in
+  let expected = [Iopub (error ~value:"runtime_error"
+                           ["You need a begin-end block in order to generate \
+                             a state diagram"]);
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+let test__incomplete_model_simulation ctxt =
+  let actual = Eval_util.eval "%simulate 0\n" |> map_content in
+  let expected = [Iopub (error ~value:"runtime_error"
+                           ["You need a begin-end block in order to run a \
+                             simulation"]);
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+let test__stochastic_model_simulation ctxt =
+  let actual = Eval_util.eval "%simulate 0\
+                               \nctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo -[0.5]-> foo;\
+                               \nbegin sbrs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               \nend" |> map_content in
+  let actual1 = List.nth actual 1 in
+  let actual_length = List.length actual in
+  let expected = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: int] 2 actual_length ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected actual1
+
+let test__state_diagram ctxt =
+  let actual = Eval_util.eval "%states\
+                               \nctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo --> foo;\
+                               \nbegin brs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               end" |> map_content in
+  let actual1 = List.nth actual 1 in
+  let actual_length = List.length actual in
+  let expected = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: int] 2 actual_length ;
+  assert_equal ~ctxt ~printer:[%show: reply] expected actual1
+
+let test__stochastic_simulation_without_max_time ctxt =
+  let actual = Eval_util.eval "%simulate
+                               \nctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo -[0.5]-> foo;\
+                               \nbegin sbrs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               end" |> map_content in
+  let expected = [Iopub (error ~value:"runtime_error"
+                           ["For a stochastic system, %simulate should be \
+                             followed by the maximum simulation time (as a \
+                             floating-point number)"]);
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
+let test__deterministic_simulation_without_max_num_steps ctxt =
+  let actual = Eval_util.eval "%simulate
+                               \nctrl Foo = 0;\
+                               \nbig foo = Foo.1;\
+                               \nreact bar = foo --> foo;\
+                               \nbegin brs\
+                               \n  init foo;\
+                               \n  rules = [{bar}];\
+                               \n  preds = {foo};\
+                               end" |> map_content in
+  let expected = [Iopub (error ~value:"runtime_error"
+                           ["For a deterministic or probabilistic model, \
+                             %simulate should be followed by the maximum \
+                             number of simulation steps (as a non-negative \
+                             integer)"]);
+                  Shell (execute_reply ~count:0 SHELL_ERROR)] in
+  assert_equal ~ctxt ~printer:[%show: reply list] expected actual
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -281,6 +391,16 @@ let suite =
       "stochastic_model" >:: test__stochastic_model;
       "clear_buffer" >:: test__clear_buffer;
       "bigraphers_output" >:: test__bigraphers_output;
+      "probabilistic_model_state_diagram" >::
+      test__probabilistic_model_simulation;
+      "incomplete_model_state_diagram" >:: test__incomplete_model_state_diagram;
+      "incomplete_model_simulation" >:: test__incomplete_model_simulation;
+      "stochastic_model_simulation" >:: test__stochastic_model_simulation;
+      "state_diagram" >:: test__state_diagram;
+      "stochastic_simulation_without_max_time" >::
+      test__stochastic_simulation_without_max_time;
+      "deterministic_simulation_without_max_num_steps" >::
+      test__deterministic_simulation_without_max_num_steps;
     ]
   ]
 

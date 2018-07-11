@@ -330,62 +330,54 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
   let lines = String.split_on_char '\n' code in
   let model_type = get_model_type lines in
 
-  if mode <> Validate && model_type = Incomplete then
+  let bigraphs = list_defined_entities "big" lines in
+  let unfiltered_reaction_rules = list_defined_entities "react" lines in
+  let taken_names = all_defined_entities lines in
+
+  Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+  let (reaction_rules, contents) = code_of_buffer taken_names
+      unfiltered_reaction_rules model_type in
+
+  let code_filename = write_code_to_file count contents in
+  let filename = Printf.sprintf "[%d]" count in
+  let image_filename = Filename.concat dirname filename in
+  let command = match mode with
+    | Full ->
+      Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
+        image_filename code_filename
+    | SimulationSteps n ->
+      Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
+        image_filename n code_filename
+    | SimulationTime t ->
+      Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
+        image_filename t code_filename
+    | Validate ->
+      Printf.sprintf "bigrapher validate -d %s -f svg %s"
+        dirname code_filename 
+  in
+  let channel, output_buffer = capture_output command in
+  if _produce_output then
+    send (iopub_success ~count (Buffer.contents output_buffer)) ;
+
+  match Unix.close_process_in channel with
+  | Unix.WEXITED 0 ->
     begin
-      send (Iopub.error ~value:"runtime_error"
-              ["Incomplete models cannot be run \
-                in %states or %simulate mode"]) ;
-      Shell.SHELL_ERROR
-    end
-  else
-    let bigraphs = list_defined_entities "big" lines in
-    let unfiltered_reaction_rules = list_defined_entities "react" lines in
-    let taken_names = all_defined_entities lines in
-
-    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let (reaction_rules, contents) = code_of_buffer taken_names
-        unfiltered_reaction_rules model_type in
-
-    let code_filename = write_code_to_file count contents in
-    let filename = Printf.sprintf "[%d]" count in
-    let image_filename = Filename.concat dirname filename in
-    let command = match mode with
-      | Full ->
-        Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
-          image_filename code_filename
-      | SimulationSteps n ->
-        Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
-          image_filename n code_filename
-      | SimulationTime t ->
-        Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
-          image_filename t code_filename
+      match mode with
       | Validate ->
-        Printf.sprintf "bigrapher validate -d %s -f svg %s"
-          dirname code_filename 
-    in
-    let channel, output_buffer = capture_output command in
-    if _produce_output then
-      send (iopub_success ~count (Buffer.contents output_buffer)) ;
-
-    match Unix.close_process_in channel with
-    | Unix.WEXITED 0 ->
-      begin
-        match mode with
-        | Validate ->
-          display_bigraphs send count dirname bigraphs ;
-          display_reaction_rules send count dirname reaction_rules
-        | _ ->
-          image_filename ^ ".svg"
-          |> Jupyter_notebook.display_file "image/svg+xml" 
-          |> ignore
-      end ;
-      if model_type <> Incomplete then truncate_buffer code ;
-      safe_remove code_filename ;
-      Shell.SHELL_OK
-    | _ ->
-      truncate_buffer code ;
-      safe_remove code_filename ;
-      Shell.SHELL_ERROR
+        display_bigraphs send count dirname bigraphs ;
+        display_reaction_rules send count dirname reaction_rules
+      | _ ->
+        image_filename ^ ".svg"
+        |> Jupyter_notebook.display_file "image/svg+xml" 
+        |> ignore
+    end ;
+    if model_type <> Incomplete then truncate_buffer code ;
+    safe_remove code_filename ;
+    Shell.SHELL_OK
+  | _ ->
+    truncate_buffer code ;
+    safe_remove code_filename ;
+    Shell.SHELL_ERROR
 
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
@@ -407,8 +399,18 @@ let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
     let remaining_code = Str.string_after code 8 in
     eval ~_produce_output:true ~error_ctx_size ~send ~count remaining_code
   else if starts_with code "%states\n" then
-    let remaining_code = Str.string_after code 8 in
-    run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
+    begin
+      if model_type = Incomplete then
+        begin
+          send (Iopub.error ~value:"runtime_error"
+                  ["You need a begin-end block in order to generate a state \
+                    diagram"]) ;
+          Shell.SHELL_ERROR
+        end
+      else
+        let remaining_code = Str.string_after code 8 in
+        run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
+    end
   else if starts_with code "%simulate" then
     let argument = extract_name 9 code in
     let end_of_line = String.index code '\n' in
