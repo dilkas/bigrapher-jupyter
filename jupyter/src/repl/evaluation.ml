@@ -175,9 +175,9 @@ let files_in_dir dirname =
 (* Return the second word in the string, where keyword_length denotes the
    length of the first word *)
 let extract_name keyword_length str =
-  let whitespace = Str.regexp "[ \n]" in
+  let non_word_characters = Str.regexp "[ \n(]" in
   let end_of_name =
-    try Str.search_forward whitespace str (keyword_length + 1)
+    try Str.search_forward non_word_characters str (keyword_length + 1)
     with Not_found -> String.length str
   in
   String.sub str (keyword_length + 1) (end_of_name - keyword_length - 1)
@@ -202,10 +202,13 @@ let list_defined_entities keyword lines =
       Str.first_chars line keyword_length = keyword) lines in
   List.map (extract_name keyword_length) relevant_lines
 
+(* Return a list of names that have already been used for some type of
+   variables *)
 let all_defined_entities lines =
   List.fold_left (fun entities keyword ->
       entities @ list_defined_entities keyword lines) []
-    ["float"; "int"; "ctrl"; "atomic ctrl"; "big"; "react"]
+    ["float"; "int"; "ctrl"; "atomic ctrl";
+     "big"; "react"; "fun big"; "fun react"]
 
 (* Is the reaction rule in text starting at first_index a stochastic rule? *)
 let is_stochastic text first_index =
@@ -216,7 +219,7 @@ let is_stochastic text first_index =
 let rec remove_non_stochastic_rules text = function
   | [] -> [], text
   | (rule :: other_rules) as rules ->
-    let regular_expression = Str.regexp_string "react" in
+    let regular_expression = Str.regexp "\\(fun \\)?react" in
     let i = Str.search_forward regular_expression text 0 in
     if i = 0 || text.[i - 1] = '\n' then
       if is_stochastic text i then
@@ -260,16 +263,14 @@ let complete_model taken_names model =
   let random_big = generate_string_not_in taken_names "" in
   let random_ctrl = generate_string_not_in taken_names "C" in
   let random_react = generate_string_not_in (random_big :: taken_names) "" in
-  let begin_end_block = Printf.sprintf
-      "\n
-ctrl %s = 0;
-big %s = %s.1;
-react %s = %s --> %s;
-begin brs
-  init %s;
-  rules = [{%s}];
-  preds = {%s};
-end\n"
+  let begin_end_block = Printf.sprintf "\nctrl %s = 0;\
+                                        \nbig %s = %s.1;\
+                                        \nreact %s = %s --> %s;\
+                                        \nbegin brs\
+                                        \n  init %s;\
+                                        \n  rules = [{%s}];\
+                                        \n  preds = {%s};\
+                                        end\n"
       random_ctrl random_big random_ctrl random_react random_big random_big
       random_big random_react random_big in
   model ^ begin_end_block
@@ -330,8 +331,10 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
   let lines = String.split_on_char '\n' code in
   let model_type = get_model_type lines in
 
-  let bigraphs = list_defined_entities "big" lines in
-  let unfiltered_reaction_rules = list_defined_entities "react" lines in
+  let bigraphs = list_defined_entities "big" lines @
+                 list_defined_entities "fun big" lines in
+  let unfiltered_reaction_rules = list_defined_entities "react" lines @
+                                  list_defined_entities "fun react" lines in
   let taken_names = all_defined_entities lines in
 
   Buffer.add_string bigrapher_buffer (code ^ "\n") ;

@@ -369,6 +369,193 @@ let test__deterministic_simulation_without_max_num_steps ctxt =
                   Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
+let test__functions ctxt =
+  let actual = Eval_util.eval
+      "%simulate 0\
+       \nfloat difs = 50.;\
+       \nfloat sifs = 10.;\
+       \nfloat tau = 20.;\
+       \nfloat timeout = sifs + tau;\
+       \nfloat rts = 160.;\
+       \nfloat cts = 112.;\
+       \nfloat ack = 112.;\
+       \nfloat t_min = 15.;\
+       \nfloat rho2 = 1./(sifs + cts);\
+       \nfloat rho4 = 1./(sifs + ack);\
+       \nfloat rho5 = 1./(timeout);\
+       \nfun ctrl S(t) = 1;\
+       \nfun ctrl S_L(t) = 1;\
+       \nfun ctrl S_C(t) = 1;\
+       \nctrl S_E = 1;\
+       \nctrl M = 2;\
+       \nctrl M_L = 2;\
+       \nctrl M_D = 2;\
+       \nctrl M_P = 2;\
+       \nctrl M_B = 2;\
+       \nfun ctrl W(l) = 2;\
+       \nfun ctrl RTS(l) = 2;\
+       \nfun ctrl CTS(l) = 2;\
+       \nfun ctrl P(l) = 2;\
+       \natomic ctrl Q = 1;\
+       \natomic ctrl A = 1;\
+       \nfun big m_A(l) = \
+       \n/x /r /q (M{r, x}.(W(l){x,a_B}.Q{q} | A{a_A}));\
+       \nbig m_B =\
+       \n/x /r (M{r, x}.A{a_B});\
+       \nfun big m_C(k) =\
+       \n/x /r /q (M{r, x}.(W(k){x,a_B}.Q{q} | A{a_C}));\
+       \nbig psi =\
+       \n([{0,1}, {0,1,2}, {1,2}], 3);\
+       \nfun big n_0(l,k,t_A,t_B,t_C) =\
+       \nshare (m_A(l) || m_B || m_C(k))\
+       \nby psi\
+       \nin (id{a_A,a_B,a_C} | S(t_A){a_A} | S(t_B){a_B} | S(t_C){a_C} );\
+       \nbig psi_1 = ([{1}, {0,1}], 2);\
+       \nfun big m_w(l) =\
+       \n/x /r (M{r,x}.(id | W(l){x,d}.Q{q} | A{a}));\
+       \nfun big m_l(l) =\
+       \n/x /r (M_L{r,x}.(id | RTS(l){x,d}.Q{q} | A{a}));\
+       \nfun react r_RTS(t,l) =\
+       \nshare (id || m_w(l)) by psi_1 in (id(1, {a, d, q}) || S(t){a})\
+       \n-[ 1.0/(difs + tau*t/2.0 + rts) ]->\
+       \nshare (id || m_l(l)) by psi_1 in (id(1, {a, d, q}) || S_L(t){a});\
+       \nbig psi_2 = ([{0,2,3}, {1,2,3}, {2}, {3}], 4);\
+       \nfun big s(l) =\
+       \n/x (M_L{r,x}.(id | CTS(l){x,d}.Q{q} | A{a}));\
+       \nbig r = \
+       \nM_L{r,x}.(id | A{d});\
+       \nfun react r_CTS(t, u, l) =\
+       \nshare (m_l(l) || M_D{r,x}.(id | A{d})|| id(2))\
+       \nby psi_2\
+       \nin (id(2, {x,a,d,q}) || (S_L(t){a} | S(u){d}) || /r)\
+       \n-[ rho2 ]->\
+       \nshare (s(l) || r || id(2))\
+       \nby psi_2\
+       \nin (id(2, {x,a,d,q}) ||(S_L(t){a} | S_L(u){d}) || /r);\
+       \nfun big s1(l) =\
+       \n/x (M_L{r,x}.(id | P(l){x,d}.Q{q} | A{a}));\
+       \nfun react r_DATA(l) = \
+       \n/r (s(l) || r)\
+       \n-[ 1.0 / (sifs + l) ]->\
+       \n/r (s1(l) || r);\
+       \nfun big s2(l) =\
+       \n/r (M{r,q}.(id | A{a}));\
+       \nbig r1 = \
+       \n/r (M{r,x}.(id | A{d}));\
+       \nfun react r_ACK(t,u,l) = \
+       \nshare (s1(l) || r || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_L(t){a} | S_L(u){d}) || /r)\
+       \n-[ rho4 ]->\
+       \nshare (s2(l) || r1 || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_C(t_min){a} | S_C(u){d}));\
+       \nfun big f(t,u,l) = \
+       \nshare (m_w(l) || M{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_C(2.0*t+1.0){a} | S(u){d}) || /r);\
+       \nfun big m_b(l) =\
+       \n/x /r (M_B{r,x}.(id | RTS(l){x,d}.Q{q} | A{a}));\
+       \nfun react r_BACK1(t,u,l) =\
+       \nshare (m_b(l) || M_P{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_L(t){a} | S(u){d}) || /r)\
+       \n-[ rho5 ]->\
+       \nf(t,u,l);\
+       \nfun big f_E(u,l) =\
+       \nshare (m_w(l) || M{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_E{a} | S(u){d}) || /r);\
+       \nfun react r_BACK1E(u,l) =\
+       \nshare (m_b(l) || M_P{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_L(1023.0){a} | S(u){d}) || /r)\
+       \n-[ rho5 ]->\
+       \nf_E(u,l);\
+       \nfun react r_BACK2(t,u,l) =\
+       \nshare (m_b(l) || M_D{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_L(t){a} | S(u){d}) || /r)\
+       \n-[ rho5 ]->\
+       \nf(t,u,l);\
+       \nfun react r_BACK2E(u,l) =\
+       \nshare (m_b(l) || M_D{r,x}.(id | A{d}) || id(2))\
+       \nby psi_2\
+       \nin (id(2,{x,a,q,d}) || (S_L(1023.0){a} | S(u){d}) || /r)\
+       \n-[ rho5 ]->\
+       \nf_E(u,l);\
+       \nfun react r_D(t) =\
+       \nshare (id || M{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_L(t){b} || /r)\
+       \n-[ inf ]->\
+       \nshare (id || M_D{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_L(t){b} || /r);\
+       \nbig psi_3 = ([{1}, {2}, {0,1,2}], 3);\
+       \nfun react r_P(t,u) = \
+       \nshare (id(2) || M_D{r,x}.(id | A{a}))\
+       \nby psi_3\
+       \nin (id(1,{a,x}) || (S_L(t){b} | S_L(u){c}) || /r)\
+       \n-[ inf ]->\
+       \nshare (id(2) || M_P{r,x}.(id | A{a}))\
+       \nby psi_3\
+       \nin (id(1,{a,x}) || (S_L(t){b} | S_L(u){c}) || /r);\
+       \nfun react r_B(l) = \
+       \nm_l(l) || /r M_P{r,x}.(id | A{d})\
+       \n-[ inf ]->\
+       \nm_b(l) || /r M_P{r,x}.(id | A{d});\
+       \nfun big clr(t) =\
+       \nshare (id || M{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_C(t){b} || /r);\
+       \nfun react r_UD(t) = \
+       \nshare (id || M_D{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_C(t){b} || /r)\
+       \n-[ inf ]->\
+       \nclr(t);\
+       \nfun react r_UP(t) = \
+       \nshare (id || M_P{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_C(t){b} || /r)\
+       \n-[ inf ]->\
+       \nclr(t);\
+       \nfun react r_UC(t) = \
+       \nshare (id || M{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S_C(t){a} || /r)\
+       \n-[ inf ]->\
+       \nshare (id || M{r,x}.(id | A{a}))\
+       \nby psi_1\
+       \nin (id(1,{a,x}) || S(t){a} || /r);\
+       \nbig error = S_E{x};\
+       \nbig collision = M_B{x,y} || M_B{z,w};\
+       \nfun big transmission(t) =\
+       \nshare (id || /x M_L{r,x}.(id | P(8464.){x,d} | A{a}))\
+       \nby ([{0}, {0,1}], 2)\
+       \nin (S_L(t){a} || id(1,{d,r,a}));\
+       \nbegin sbrs\
+       \nfloat t, t' = { 15., 31., 63., 127., 255., 511., 1023. };\
+       \nfloat z = { 15., 31., 63., 127., 255., 511. };\
+       \nfloat l = { 8464., 4368. };\
+       \ninit n_0(8464., 4368., 15., 15., 15.);\
+       \nrules = [\
+       \n(r_UD(t), r_UP(t)),\
+       \n(r_UC(t)),\
+       \n(r_D(t)),\
+       \n(r_P(t,t')),\
+       \n(r_B(l)),\
+       \n{r_BACK1(z,t,l), r_BACK1E(t,l), r_BACK2(z,t,l), r_BACK2E(t,l)},\
+       \n{r_RTS(t,l), r_CTS(t,t',l), r_DATA(l), r_ACK(t,t',l)}\
+       \n];\
+       \npreds = { error, collision, transmission(t) };\
+       \nend" |> map_content in
+  let actual_length = List.length actual in
+  let actual1 = List.nth actual 1 in
+  let expected = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: reply] expected actual1
+
 let suite =
   "Evaluation" >::: [
     "eval" >::: [
@@ -401,6 +588,7 @@ let suite =
       test__stochastic_simulation_without_max_time;
       "deterministic_simulation_without_max_num_steps" >::
       test__deterministic_simulation_without_max_num_steps;
+      "functions" >:: test__functions;
     ]
   ]
 
