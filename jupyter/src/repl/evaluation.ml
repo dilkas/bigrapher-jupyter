@@ -329,18 +329,18 @@ let starts_with text pattern =
 
 (* Generate a BigraphER command as a string, according to the subcommand *)
 let command_string_of_subcommand image_filename code_filename dirname = function
-    | Full ->
-      Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
-        image_filename code_filename
-    | SimulationSteps n ->
-      Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
-        image_filename n code_filename
-    | SimulationTime t ->
-      Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
-        image_filename t code_filename
-    | Validate ->
-      Printf.sprintf "bigrapher validate -d %s -f svg %s"
-        dirname code_filename 
+  | Full ->
+    Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
+      image_filename code_filename
+  | SimulationSteps n ->
+    Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
+      image_filename n code_filename
+  | SimulationTime t ->
+    Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
+      image_filename t code_filename
+  | Validate ->
+    Printf.sprintf "bigrapher validate -d %s -f svg %s"
+      dirname code_filename 
 
 let display_and_return ~send ~count code bigraphs reaction_rules dirname
     code_filename image_filename model_type subcommand = function
@@ -363,96 +363,106 @@ let display_and_return ~send ~count code bigraphs reaction_rules dirname
     safe_remove code_filename ;
     Shell.SHELL_ERROR
 
-let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
-  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
-  let lines = String.split_on_char '\n' code in
-  let model_type = get_model_type lines in
-
-  let bigraphs = list_defined_entities "big" lines @
-                 list_defined_entities "fun big" lines in
-  let unfiltered_reaction_rules = list_defined_entities "react" lines @
-                                  list_defined_entities "fun react" lines in
-  let taken_names = all_defined_entities lines in
-
-  Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-  let (reaction_rules, contents) = code_of_buffer taken_names
-      unfiltered_reaction_rules model_type in
-
-  let code_filename = write_code_to_file count contents in
-  let image_filename = Printf.sprintf "[%d]" count |> Filename.concat dirname in
-  let bigrapher_command = command_string_of_subcommand image_filename
-      code_filename dirname mode in
-  let process_status, output = capture_output bigrapher_command in
-  if _produce_output then
-    send (iopub_success ~count output) ;
-  display_and_return ~send ~count code bigraphs reaction_rules dirname
-    code_filename image_filename model_type mode process_status
-
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order
    (starting from 0). *)
-let rec eval ?(_produce_output = false) ?(_mode = Full) ?(error_ctx_size = 1)
-    ~send ~count code =
-  let model_type = String.split_on_char '\n' code |> get_model_type in
+let rec eval ?(_produce_output = false) ?(_mode = Validate)
+    ?(error_ctx_size = 1) ~send ~count code =
+  let lines = String.split_on_char '\n' code in
+  let model_type = get_model_type lines in
   if starts_with code "%clear\n" then
     begin
       Buffer.clear bigrapher_buffer ;
       let remaining_code = Str.string_after code 7 in
-      eval ~error_ctx_size ~send ~count remaining_code
+      eval ~_produce_output ~_mode ~error_ctx_size ~send ~count remaining_code
     end
   else if starts_with code "%ocaml\n" then
     let remaining_code = Str.string_after code 7 in
     eval_ocaml ~error_ctx_size ~send ~count remaining_code
   else if starts_with code "%output\n" then
     let remaining_code = Str.string_after code 8 in
-    eval ~_produce_output:true ~error_ctx_size ~send ~count remaining_code
+    eval ~_produce_output:true ~_mode ~error_ctx_size ~send ~count
+      remaining_code
   else if starts_with code "%states\n" then
-    begin
-      if model_type = Incomplete then
-        begin
-          send (Iopub.error ~value:"runtime_error"
-                  ["You need a begin-end block in order to generate a state \
-                    diagram"]) ;
-          Shell.SHELL_ERROR
-        end
-      else
-        let remaining_code = Str.string_after code 8 in
-        run_bigrapher ~_produce_output ~mode:Full ~send ~count remaining_code
-    end
+    generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
+      code model_type
   else if starts_with code "%simulate" then
-    let argument = extract_name 9 code in
-    let end_of_line = String.index code '\n' in
-    let remaining_code = Str.string_after code (end_of_line + 1) in
-    match model_type with
-    | Incomplete ->
-      send (Iopub.error ~value:"runtime_error"
-              ["You need a begin-end block in order to run a simulation"]) ;
-      Shell.SHELL_ERROR
-    | Stochastic ->
-      begin
-        try
-          let simulation_time = float_of_string argument in
-          let mode = SimulationTime simulation_time in
-          run_bigrapher ~_produce_output ~mode ~send ~count remaining_code
-        with Failure _ ->
-          send (Iopub.error ~value:"runtime_error"
-                  ["For a stochastic system, %simulate should be followed by \
-                    the maximum simulation time (as a floating-point \
-                    number)"]) ;
-          Shell.SHELL_ERROR
-      end
-    | Deterministic
-    | Probabilistic ->
+    run_simulation _produce_output _mode error_ctx_size ~send ~count code
+      model_type
+  else
+    validate _produce_output _mode ~send ~count code model_type lines
+
+and run_simulation _produce_output _mode error_ctx_size ~send ~count code
+    model_type =
+  let argument = extract_name 9 code in
+  let end_of_line = String.index code '\n' in
+  let remaining_code = Str.string_after code (end_of_line + 1) in
+  match model_type with
+  | Incomplete ->
+    send (Iopub.error ~value:"runtime_error"
+            ["You need a begin-end block in order to run a simulation"]) ;
+    Shell.SHELL_ERROR
+  | Stochastic ->
+    begin
       try
-        let num_steps = int_of_string argument in
-        let mode = SimulationSteps num_steps in
-        run_bigrapher ~_produce_output ~mode ~send ~count remaining_code
+        let simulation_time = float_of_string argument in
+        let _mode = SimulationTime simulation_time in
+        eval ~_produce_output ~_mode ~error_ctx_size ~send ~count remaining_code
       with Failure _ ->
         send (Iopub.error ~value:"runtime_error"
-                ["For a deterministic or probabilistic model, %simulate \
-                  should be followed by the maximum number of simulation \
-                  steps (as a non-negative integer)"]) ;
+                ["For a stochastic system, %simulate should be followed by \
+                  the maximum simulation time (as a floating-point \
+                  number)"]) ;
         Shell.SHELL_ERROR
+    end
+  | Deterministic
+  | Probabilistic ->
+    try
+      let num_steps = int_of_string argument in
+      let _mode = SimulationSteps num_steps in
+      eval ~_produce_output ~_mode ~error_ctx_size ~send ~count remaining_code
+    with Failure _ ->
+      send (Iopub.error ~value:"runtime_error"
+              ["For a deterministic or probabilistic model, %simulate \
+                should be followed by the maximum number of simulation \
+                steps (as a non-negative integer)"]) ;
+      Shell.SHELL_ERROR
+
+and generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
+    code model_type =
+  if model_type = Incomplete then
+    begin
+      send (Iopub.error ~value:"runtime_error"
+              ["You need a begin-end block in order to generate a state \
+                diagram"]) ;
+      Shell.SHELL_ERROR
+    end
   else
-    run_bigrapher ~_produce_output ~mode:Validate ~send ~count code
+    let remaining_code = Str.string_after code 8 in
+    eval ~_produce_output ~_mode:Full ~error_ctx_size ~send ~count
+      remaining_code
+
+and validate _produce_output _mode ~send ~count code model_type
+    lines =
+    let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
+    let bigraphs = list_defined_entities "big" lines @
+                   list_defined_entities "fun big" lines in
+    let unfiltered_reaction_rules = list_defined_entities "react" lines @
+                                    list_defined_entities "fun react" lines in
+    let taken_names = all_defined_entities lines in
+
+    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+    let (reaction_rules, contents) = code_of_buffer taken_names
+        unfiltered_reaction_rules model_type in
+
+    let code_filename = write_code_to_file count contents in
+    let image_filename = Printf.sprintf "[%d]" count
+                         |> Filename.concat dirname in
+    let bigrapher_command = command_string_of_subcommand image_filename
+        code_filename dirname _mode in
+    let process_status, output = capture_output bigrapher_command in
+    if _produce_output then
+      send (iopub_success ~count output) ;
+    display_and_return ~send ~count code bigraphs reaction_rules dirname
+      code_filename image_filename model_type _mode process_status
