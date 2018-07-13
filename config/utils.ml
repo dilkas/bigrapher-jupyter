@@ -9,11 +9,9 @@ let capture_output command =
       done
     with End_of_file -> ()
   end ;
-  channel, output_buffer
+  Unix.close_process_in channel, Buffer.contents output_buffer
 
 let bigrapher_version () =
-  let channel, buffer = capture_output "bigrapher -V" in
-  let _ = Unix.close_process_in channel in
-  let contents = Buffer.contents buffer in
-  let length = String.length contents in
-  String.sub contents 0 (length - 1)
+  let _, output = capture_output "bigrapher -V" in
+  let length = String.length output in
+  String.sub output 0 (length - 1)

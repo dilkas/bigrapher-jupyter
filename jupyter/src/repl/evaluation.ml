@@ -110,7 +110,8 @@ let eval_phrase ~filename phrase =
   Buffer.clear ocaml_buffer ;
   (is_ok, message)
 
-let eval_ocaml ?(_produce_output=false) ?(error_ctx_size = 1) ~send ~count code =
+let eval_ocaml ?(_produce_output=false) ?(_mode=Full) ?(error_ctx_size = 1)
+    ~send ~count code =
   let filename = sprintf "[%d]" count in
   let rec loop status = function
     | [] -> status
@@ -326,25 +327,8 @@ let starts_with text pattern =
   String.length text >= pattern_length &&
   String.sub text 0 pattern_length = pattern
 
-let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
-  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
-  let lines = String.split_on_char '\n' code in
-  let model_type = get_model_type lines in
-
-  let bigraphs = list_defined_entities "big" lines @
-                 list_defined_entities "fun big" lines in
-  let unfiltered_reaction_rules = list_defined_entities "react" lines @
-                                  list_defined_entities "fun react" lines in
-  let taken_names = all_defined_entities lines in
-
-  Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-  let (reaction_rules, contents) = code_of_buffer taken_names
-      unfiltered_reaction_rules model_type in
-
-  let code_filename = write_code_to_file count contents in
-  let filename = Printf.sprintf "[%d]" count in
-  let image_filename = Filename.concat dirname filename in
-  let command = match mode with
+(* Generate a BigraphER command as a string, according to the subcommand *)
+let command_string_of_subcommand image_filename code_filename dirname = function
     | Full ->
       Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
         image_filename code_filename
@@ -357,15 +341,12 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
     | Validate ->
       Printf.sprintf "bigrapher validate -d %s -f svg %s"
         dirname code_filename 
-  in
-  let channel, output_buffer = capture_output command in
-  if _produce_output then
-    send (iopub_success ~count (Buffer.contents output_buffer)) ;
 
-  match Unix.close_process_in channel with
+let display_and_return ~send ~count code bigraphs reaction_rules dirname
+    code_filename image_filename model_type subcommand = function
   | Unix.WEXITED 0 ->
     begin
-      match mode with
+      match subcommand with
       | Validate ->
         display_bigraphs send count dirname bigraphs ;
         display_reaction_rules send count dirname reaction_rules
@@ -382,11 +363,36 @@ let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
     safe_remove code_filename ;
     Shell.SHELL_ERROR
 
+let run_bigrapher ?(_produce_output = false) ~mode ~send ~count code =
+  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
+  let lines = String.split_on_char '\n' code in
+  let model_type = get_model_type lines in
+
+  let bigraphs = list_defined_entities "big" lines @
+                 list_defined_entities "fun big" lines in
+  let unfiltered_reaction_rules = list_defined_entities "react" lines @
+                                  list_defined_entities "fun react" lines in
+  let taken_names = all_defined_entities lines in
+
+  Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+  let (reaction_rules, contents) = code_of_buffer taken_names
+      unfiltered_reaction_rules model_type in
+
+  let code_filename = write_code_to_file count contents in
+  let image_filename = Printf.sprintf "[%d]" count |> Filename.concat dirname in
+  let bigrapher_command = command_string_of_subcommand image_filename
+      code_filename dirname mode in
+  let process_status, output = capture_output bigrapher_command in
+  if _produce_output then
+    send (iopub_success ~count output) ;
+  display_and_return ~send ~count code bigraphs reaction_rules dirname
+    code_filename image_filename model_type mode process_status
+
 (* Evaluate a given code block, sending/displaying any results and returning a
    success/failure status. Send - the function used for sending textual output.
    Count - the number of the cell according to the run order
    (starting from 0). *)
-let rec eval ?(_produce_output = false) ?(error_ctx_size = 1)
+let rec eval ?(_produce_output = false) ?(_mode = Full) ?(error_ctx_size = 1)
     ~send ~count code =
   let model_type = String.split_on_char '\n' code |> get_model_type in
   if starts_with code "%clear\n" then

@@ -22,6 +22,11 @@
 
 (** Top-level loop of OCaml code evaluation *)
 
+type subcommand = | Full
+                  | SimulationTime of float
+                  | SimulationSteps of int
+                  | Validate
+
 (** Globally initialize the OCaml REPL on the current process.
     @param preload    [.cma] files to be loaded.
     @param preinit    function called before reading [.ocamlinit].
@@ -45,12 +50,14 @@ val iopub_interrupt : unit -> Jupyter.Iopub.reply
 
 val eval :
   ?_produce_output:bool ->
+  ?_mode:subcommand ->
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status
 
 val eval_ocaml :
   ?_produce_output:bool ->
+  ?_mode:subcommand ->
   ?error_ctx_size:int ->
   send:(Jupyter.Iopub.reply -> unit) ->
   count:int -> string -> Jupyter.Shell.status

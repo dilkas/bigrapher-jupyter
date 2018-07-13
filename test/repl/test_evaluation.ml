@@ -554,6 +554,7 @@ let test__functions ctxt =
   let actual_length = List.length actual in
   let actual1 = List.nth actual 1 in
   let expected = Shell (execute_reply ~count:0 SHELL_OK) in
+  assert_equal ~ctxt ~printer:[%show: int] 2 actual_length ;
   assert_equal ~ctxt ~printer:[%show: reply] expected actual1
 
 let suite =
