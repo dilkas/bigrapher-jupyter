@@ -330,14 +330,14 @@ let starts_with text pattern =
 (* Generate a BigraphER command as a string, according to the subcommand *)
 let command_string_of_subcommand image_filename code_filename dirname = function
   | Full ->
-    Printf.sprintf "bigrapher full -t %s -f svg -s ./ %s"
-      image_filename code_filename
+    Printf.sprintf "bigrapher full -t %s -f svg -s %s %s"
+      image_filename dirname code_filename
   | SimulationSteps n ->
-    Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -S %d %s"
-      image_filename n code_filename
+    Printf.sprintf "bigrapher sim -t %s -f svg -s %s -S %d %s"
+      image_filename dirname n code_filename
   | SimulationTime t ->
-    Printf.sprintf "bigrapher sim -t %s -f svg -s ./ -T %f %s"
-      image_filename t code_filename
+    Printf.sprintf "bigrapher sim -t %s -f svg -s %s -T %f %s"
+      image_filename dirname t code_filename
   | Validate ->
     Printf.sprintf "bigrapher validate -d %s -f svg %s"
       dirname code_filename 
