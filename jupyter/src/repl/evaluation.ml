@@ -26,7 +26,12 @@ open Format
 open Jupyter
 open Utils
 
-type model = Incomplete | Deterministic | Probabilistic | Stochastic
+type model = | Incomplete
+             | Deterministic
+             | Probabilistic
+             | Stochastic
+             | Nondeterministic
+
 type subcommand = | Full
                   | SimulationTime of float
                   | SimulationSteps of int
@@ -192,6 +197,7 @@ let rec get_model_type = function
       match extract_name 5 line with
       | "pbrs" -> Probabilistic
       | "sbrs" -> Stochastic
+      | "nbrs" -> Nondeterministic
       | _      -> Deterministic
     else get_model_type remaining_lines
 
@@ -282,8 +288,7 @@ let complete_model taken_names model =
    model. *)
 let code_of_buffer taken_names reaction_rules = function
   | Deterministic -> reaction_rules, Buffer.contents bigrapher_buffer
-  | Probabilistic
-  | Stochastic ->
+  | Probabilistic | Stochastic | Nondeterministic ->
     let code = Buffer.contents bigrapher_buffer in
     remove_non_stochastic_rules code reaction_rules
   | Incomplete ->
@@ -416,15 +421,14 @@ and run_simulation _produce_output _mode error_ctx_size ~send ~count code
                   number)"]) ;
         Shell.SHELL_ERROR
     end
-  | Deterministic
-  | Probabilistic ->
+  | Deterministic | Probabilistic | Nondeterministic ->
     try
       let num_steps = int_of_string argument in
       let _mode = SimulationSteps num_steps in
       eval ~_produce_output ~_mode ~error_ctx_size ~send ~count remaining_code
     with Failure _ ->
       send (Iopub.error ~value:"runtime_error"
-              ["For a deterministic or probabilistic model, %simulate \
+              ["For a non-stochastic model, %simulate \
                 should be followed by the maximum number of simulation \
                 steps (as a non-negative integer)"]) ;
       Shell.SHELL_ERROR
@@ -445,24 +449,24 @@ and generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
 
 and validate _produce_output _mode ~send ~count code model_type
     lines =
-    let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
-    let bigraphs = list_defined_entities "big" lines @
-                   list_defined_entities "fun big" lines in
-    let unfiltered_reaction_rules = list_defined_entities "react" lines @
-                                    list_defined_entities "fun react" lines in
-    let taken_names = all_defined_entities lines in
+  let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
+  let bigraphs = list_defined_entities "big" lines @
+                 list_defined_entities "fun big" lines in
+  let unfiltered_reaction_rules = list_defined_entities "react" lines @
+                                  list_defined_entities "fun react" lines in
+  let taken_names = all_defined_entities lines in
 
-    Buffer.add_string bigrapher_buffer (code ^ "\n") ;
-    let (reaction_rules, contents) = code_of_buffer taken_names
-        unfiltered_reaction_rules model_type in
+  Buffer.add_string bigrapher_buffer (code ^ "\n") ;
+  let (reaction_rules, contents) = code_of_buffer taken_names
+      unfiltered_reaction_rules model_type in
 
-    let code_filename = write_code_to_file count contents in
-    let image_filename = Printf.sprintf "[%d]" count
-                         |> Filename.concat dirname in
-    let bigrapher_command = command_string_of_subcommand image_filename
-        code_filename dirname _mode in
-    let process_status, output = capture_output bigrapher_command in
-    if _produce_output then
-      send (iopub_success ~count output) ;
-    display_and_return ~send ~count code bigraphs reaction_rules dirname
-      code_filename image_filename model_type _mode process_status
+  let code_filename = write_code_to_file count contents in
+  let image_filename = Printf.sprintf "[%d]" count
+                       |> Filename.concat dirname in
+  let bigrapher_command = command_string_of_subcommand image_filename
+      code_filename dirname _mode in
+  let process_status, output = capture_output bigrapher_command in
+  if _produce_output then
+    send (iopub_success ~count output) ;
+  display_and_return ~send ~count code bigraphs reaction_rules dirname
+    code_filename image_filename model_type _mode process_status

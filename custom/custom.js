@@ -1,4 +1,4 @@
-function registerHoverEvent () {
+function registerHoverEvent() {
     $('.node:has(a)').on('mouseenter', function (evt) {
         $('.popup').html('<img src="' + $('a', this).attr('xlink:href') + '">');
         $('.popup').css({ left: evt.pageX + 30, top: evt.pageY - 15 }).show();
