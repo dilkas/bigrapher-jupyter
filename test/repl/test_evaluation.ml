@@ -362,10 +362,9 @@ let test__deterministic_simulation_without_max_num_steps ctxt =
                                \n  preds = {foo};\
                                end" |> map_content in
   let expected = [Iopub (error ~value:"runtime_error"
-                           ["For a deterministic or probabilistic model, \
-                             %simulate should be followed by the maximum \
-                             number of simulation steps (as a non-negative \
-                             integer)"]);
+                           ["For a non-stochastic model, %simulate should be \
+                           followed by the maximum number of simulation steps \
+                           (as a non-negative integer)"]);
                   Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 

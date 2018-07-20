@@ -31,6 +31,12 @@
                 next: "system",
                 indent: true
             },
+            {
+                regex: /action/,
+                token: "keyword",
+                next: "system",
+                indent: true
+            },
             { regex: /\{/, next: "name" },
             { regex: /%ocaml/, token: "meta", mode: { spec: "mllike" } },
             { regex: /%\w+/, token: "meta" },
