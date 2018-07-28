@@ -178,15 +178,11 @@ let files_in_dir dirname =
   let full_filenames = Array.map (Filename.concat dirname) files in
   Array.to_list full_filenames
 
-(* Return the second word in the string, where keyword_length denotes the
-   length of the first word *)
-let extract_name keyword_length str =
-  let non_word_characters = Str.regexp "[ \n(]" in
-  let end_of_name =
-    try Str.search_forward non_word_characters str (keyword_length + 1)
-    with Not_found -> String.length str
-  in
-  String.sub str (keyword_length + 1) (end_of_name - keyword_length - 1)
+(* Return the second word in the string (after keyword) *)
+let extract_name keyword str =
+  let name_regexp = Str.regexp (" *" ^ keyword ^ " +\\([a-zA-Z0-9_']+\\)") in
+  ignore (Str.string_match name_regexp str 0) ;
+  Str.matched_group 1 str
 
 (* Find the type of the model from a list of lines (including the 'incomplete'
    option) *)
@@ -194,7 +190,7 @@ let rec get_model_type = function
   | [] -> Incomplete
   | line :: remaining_lines ->
     if String.length line > 5 && Str.first_chars line 5 = "begin" then
-      match extract_name 5 line with
+      match extract_name "begin" line with
       | "pbrs" -> Probabilistic
       | "sbrs" -> Stochastic
       | "nbrs" -> Nondeterministic
@@ -203,11 +199,10 @@ let rec get_model_type = function
 
 (* For every row starting with the given keyword, return the second word *)
 let list_defined_entities keyword lines =
-  let keyword_length = String.length keyword in
+  let keyword_regexp = Str.regexp (" *" ^ keyword ^ " ") in
   let relevant_lines = List.filter (fun line ->
-      String.length line > keyword_length &&
-      Str.first_chars line keyword_length = keyword) lines in
-  List.map (extract_name keyword_length) relevant_lines
+      Str.string_match keyword_regexp line 0) lines in
+  List.map (extract_name keyword) relevant_lines
 
 (* Return a list of names that have already been used for some type of
    variables *)
@@ -226,7 +221,7 @@ let is_stochastic text first_index =
 let rec remove_non_stochastic_rules text = function
   | [] -> [], text
   | (rule :: other_rules) as rules ->
-    let regular_expression = Str.regexp "\\(fun \\)?react" in
+    let regular_expression = Str.regexp " *\\(fun \\)?react" in
     let i = Str.search_forward regular_expression text 0 in
     if i = 0 || text.[i - 1] = '\n' then
       if is_stochastic text i then
@@ -400,7 +395,7 @@ let rec eval ?(_produce_output = false) ?(_mode = Validate)
 
 and run_simulation _produce_output _mode error_ctx_size ~send ~count code
     model_type =
-  let argument = extract_name 9 code in
+  let argument = extract_name "%simulate" code in
   let end_of_line = String.index code '\n' in
   let remaining_code = Str.string_after code (end_of_line + 1) in
   match model_type with

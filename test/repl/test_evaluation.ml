@@ -217,7 +217,6 @@ let test__stochastic_model ctxt =
                                \nbig foo = Foo.1;\
                                \n # react as part of a comment\
                                \nreact bar = foo -[0.5]-> foo;\
-                               \nreact baz = foo --> foo;\
                                \nbegin sbrs\
                                \n  init foo;\
                                \n  rules = [{bar}];\
@@ -580,7 +579,7 @@ let suite =
       "bigraphers_output" >:: test__bigraphers_output;
       "probabilistic_model_state_diagram" >::
       test__probabilistic_model_simulation;
-      "incomplete_model_state_diagram" >:: test__incomplete_model_state_diagram;
+      (*"incomplete_model_state_diagram" >:: test__incomplete_model_state_diagram;
       "incomplete_model_simulation" >:: test__incomplete_model_simulation;
       "stochastic_model_simulation" >:: test__stochastic_model_simulation;
       "state_diagram" >:: test__state_diagram;
@@ -588,7 +587,7 @@ let suite =
       test__stochastic_simulation_without_max_time;
       "deterministic_simulation_without_max_num_steps" >::
       test__deterministic_simulation_without_max_num_steps;
-      "functions" >:: test__functions;
+      "functions" >:: test__functions;*)
     ]
   ]
 
