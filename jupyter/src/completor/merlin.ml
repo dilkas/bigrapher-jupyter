@@ -40,17 +40,11 @@ type t =
     context : Buffer.t;
   }
 
-let create ?(server = true) ?(bin_path = "ocamlmerlin") ?(dot_merlin = "./.merlin") () =
-  let cwd = Sys.getcwd () in
-  let dot_merlin = Filename.concat cwd dot_merlin in
-  if not (Sys.file_exists dot_merlin) then
-    begin
-      let channel = open_out dot_merlin in
-      Printf.fprintf channel "PKG bigraph\
-                             \nS /home/paulius/.opam/system/lib/bigraph\
-                             \nB /home/paulius/.opam/system/lib/bigraph" ;
-      close_out channel
-    end ;
+let create ?(server = true) ?(bin_path = "ocamlmerlin") ?(dot_merlin = ".merlin") () =
+  let dot_merlin =
+    if Filename.is_relative dot_merlin
+    then Filename.concat (Sys.getcwd ()) dot_merlin (* relative path *)
+    else dot_merlin in (* absolute path *)
   { server; bin_path; dot_merlin; context = Buffer.create 16; }
 
 let add_context merlin code =
