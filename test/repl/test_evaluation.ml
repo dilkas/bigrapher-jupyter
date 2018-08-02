@@ -326,15 +326,15 @@ let test__state_diagram ctxt =
                                \n  init foo;\
                                \n  rules = [{bar}];\
                                \n  preds = {foo};\
-                               end" |> map_content in
+                               \nend" |> map_content in
   let actual1 = List.nth actual 1 in
   let actual_length = List.length actual in
   let expected = Shell (execute_reply ~count:0 SHELL_OK) in
   assert_equal ~ctxt ~printer:[%show: int] 2 actual_length ;
   assert_equal ~ctxt ~printer:[%show: reply] expected actual1
 
-let test__stochastic_simulation_without_max_time ctxt =
-  let actual = Eval_util.eval "%simulate
+let test__stochastic_simulation_with_bad_argument ctxt =
+  let actual = Eval_util.eval "%simulate a
                                \nctrl Foo = 0;\
                                \nbig foo = Foo.1;\
                                \nreact bar = foo -[0.5]-> foo;\
@@ -342,7 +342,7 @@ let test__stochastic_simulation_without_max_time ctxt =
                                \n  init foo;\
                                \n  rules = [{bar}];\
                                \n  preds = {foo};\
-                               end" |> map_content in
+                               \nend" |> map_content in
   let expected = [Iopub (error ~value:"runtime_error"
                            ["For a stochastic system, %simulate should be \
                              followed by the maximum simulation time (as a \
@@ -350,8 +350,8 @@ let test__stochastic_simulation_without_max_time ctxt =
                   Shell (execute_reply ~count:0 SHELL_ERROR)] in
   assert_equal ~ctxt ~printer:[%show: reply list] expected actual
 
-let test__deterministic_simulation_without_max_num_steps ctxt =
-  let actual = Eval_util.eval "%simulate
+let test__deterministic_simulation_with_bad_argument ctxt =
+  let actual = Eval_util.eval "%simulate a
                                \nctrl Foo = 0;\
                                \nbig foo = Foo.1;\
                                \nreact bar = foo --> foo;\
@@ -359,7 +359,7 @@ let test__deterministic_simulation_without_max_num_steps ctxt =
                                \n  init foo;\
                                \n  rules = [{bar}];\
                                \n  preds = {foo};\
-                               end" |> map_content in
+                               \nend" |> map_content in
   let expected = [Iopub (error ~value:"runtime_error"
                            ["For a non-stochastic model, %simulate should be \
                            followed by the maximum number of simulation steps \
@@ -579,15 +579,15 @@ let suite =
       "bigraphers_output" >:: test__bigraphers_output;
       "probabilistic_model_state_diagram" >::
       test__probabilistic_model_simulation;
-      (*"incomplete_model_state_diagram" >:: test__incomplete_model_state_diagram;
+      "incomplete_model_state_diagram" >:: test__incomplete_model_state_diagram;
       "incomplete_model_simulation" >:: test__incomplete_model_simulation;
       "stochastic_model_simulation" >:: test__stochastic_model_simulation;
       "state_diagram" >:: test__state_diagram;
-      "stochastic_simulation_without_max_time" >::
-      test__stochastic_simulation_without_max_time;
-      "deterministic_simulation_without_max_num_steps" >::
-      test__deterministic_simulation_without_max_num_steps;
-      "functions" >:: test__functions;*)
+      "stochastic_simulation_with_bad_argument" >::
+      test__stochastic_simulation_with_bad_argument;
+      "deterministic_simulation_with_bad_argument" >::
+      test__deterministic_simulation_with_bad_argument;
+      "functions" >:: test__functions;
     ]
   ]
 

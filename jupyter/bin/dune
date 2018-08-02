@@ -4,7 +4,8 @@
  (package     jupyter)
  (public_name ocaml-jupyter-kernel)
  (preprocess  (pps lwt_ppx ppx_deriving_yojson))
- (libraries   jupyter
+ (libraries   utils
+              jupyter
               jupyter_log
               jupyter_repl
               jupyter_completor

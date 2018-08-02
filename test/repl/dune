@@ -19,5 +19,5 @@
  (action
   (chdir %{workspace_root}/test
          (progn
-           (run %{dep:test_evaluation.bc})
+           (run %{dep:test_evaluation.bc} -runner sequential)
            (run %{dep:test_process.bc} -runner sequential)))))

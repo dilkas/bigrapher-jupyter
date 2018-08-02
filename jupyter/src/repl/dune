@@ -9,13 +9,15 @@
               Compat)
  (flags       ((:include %{workspace_root}/config/ocaml_flags.sexp)))
  (preprocess  (pps lwt_ppx))
- (libraries   jupyter
+ (libraries   utils
+              jupyter
               jupyter_log
               str
               lwt
               lwt.unix
               compiler-libs.common
-              compiler-libs.toplevel))
+              compiler-libs.toplevel
+              jupyter.notebook))
 
 (rule
  (targets compat.ml)
