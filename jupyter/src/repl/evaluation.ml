@@ -38,8 +38,17 @@ type subcommand = | Full
                   | Validate
 
 let ocaml_buffer = Buffer.create 256
-let bigrapher_buffer = Buffer.create 256
 let ppf = formatter_of_buffer ocaml_buffer
+let bigrapher_buffer = Buffer.create 256
+ (* needed for truncating the buffer when interrupted *)
+let code_length = ref 0
+
+(* Remove code from the last cell from the buffer *)
+let truncate_buffer () =
+  (* -1 because we added a newline *)
+  let new_length = Buffer.length bigrapher_buffer - !code_length in
+  Buffer.truncate bigrapher_buffer new_length ;
+  code_length := 0
 
 (** {2 Initialization} *)
 
@@ -99,6 +108,7 @@ let iopub_success ?metadata ~count msg =
   Iopub.execute_result ?metadata ~count (`Assoc ["text/plain", `String msg])
 
 let iopub_interrupt () =
+  truncate_buffer () ;
   Iopub.error ~name:"interrupt" ~value:"intterupt" [
     sprintf "%sException: Sys.Break.%s"
       AnsiCode.FG.red AnsiCode.reset
@@ -304,12 +314,6 @@ let prepare_directory_for_cell image_directory permissions count =
   end ;
   dirname
 
-(* Remove code from the last cell from the buffer *)
-let truncate_buffer code =
-  (* -1 because we added a newline *)
-  let new_length = Buffer.length bigrapher_buffer - String.length code - 1 in
-  Buffer.truncate bigrapher_buffer new_length
-
 let write_code_to_file count contents =
   let filename = Printf.sprintf "[%d].big" count in
   let channel = open_out filename in
@@ -340,9 +344,9 @@ let command_string_of_subcommand image_filename code_filename dirname = function
       image_filename dirname t code_filename
   | Validate ->
     Printf.sprintf "bigrapher validate -d %s -f svg %s"
-      dirname code_filename 
+      dirname code_filename
 
-let display_and_return ~send ~count code bigraphs reaction_rules dirname
+let display_and_return ~send ~count bigraphs reaction_rules dirname
     code_filename image_filename model_type subcommand = function
   | Unix.WEXITED 0 ->
     begin
@@ -352,14 +356,14 @@ let display_and_return ~send ~count code bigraphs reaction_rules dirname
         display_reaction_rules send count dirname reaction_rules
       | _ ->
         image_filename ^ ".svg"
-        |> Jupyter_notebook.display_file "image/svg+xml" 
+        |> Jupyter_notebook.display_file "image/svg+xml"
         |> ignore
     end ;
-    if model_type <> Incomplete then truncate_buffer code ;
+    if model_type <> Incomplete then truncate_buffer () ;
     safe_remove code_filename ;
     Shell.SHELL_OK
   | _ ->
-    truncate_buffer code ;
+    truncate_buffer () ;
     safe_remove code_filename ;
     Shell.SHELL_ERROR
 
@@ -373,6 +377,7 @@ let rec eval ?(_produce_output = false) ?(_mode = Validate)
   let model_type = get_model_type lines in
   if starts_with code "%clear\n" then
     begin
+      code_length := 0 ;
       Buffer.clear bigrapher_buffer ;
       let remaining_code = Str.string_after code 7 in
       eval ~_produce_output ~_mode ~error_ctx_size ~send ~count remaining_code
@@ -385,13 +390,13 @@ let rec eval ?(_produce_output = false) ?(_mode = Validate)
     eval ~_produce_output:true ~_mode ~error_ctx_size ~send ~count
       remaining_code
   else if starts_with code "%states\n" then
-    generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
-      code model_type
-  else if starts_with code "%simulate" then
-    run_simulation _produce_output _mode error_ctx_size ~send ~count code
-      model_type
-  else
-    validate _produce_output _mode ~send ~count code model_type lines
+        generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
+          code model_type
+      else if starts_with code "%simulate" then
+        run_simulation _produce_output _mode error_ctx_size ~send ~count code
+          model_type
+      else
+        validate _produce_output _mode ~send ~count code model_type lines
 
 and run_simulation _produce_output _mode error_ctx_size ~send ~count code
     model_type =
@@ -451,6 +456,7 @@ and validate _produce_output _mode ~send ~count code model_type
                                   list_defined_entities "fun react" lines in
   let taken_names = all_defined_entities lines in
 
+  code_length := String.length code + 1 ;
   Buffer.add_string bigrapher_buffer (code ^ "\n") ;
   let (reaction_rules, contents) = code_of_buffer taken_names
       unfiltered_reaction_rules model_type in
@@ -463,5 +469,5 @@ and validate _produce_output _mode ~send ~count code model_type
   let process_status, output = capture_output bigrapher_command in
   if _produce_output then
     send (iopub_success ~count output) ;
-  display_and_return ~send ~count code bigraphs reaction_rules dirname
+  display_and_return ~send ~count bigraphs reaction_rules dirname
     code_filename image_filename model_type _mode process_status
