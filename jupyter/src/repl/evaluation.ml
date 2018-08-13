@@ -349,7 +349,7 @@ let command_string_of_subcommand image_filename code_filename dirname = function
       dirname code_filename
 
 let display_and_return ~send ~count bigraphs reaction_rules dirname
-    code_filename image_filename model_type subcommand = function
+    image_filename model_type subcommand = function
   | Unix.WEXITED 0 ->
     begin
       match subcommand with
@@ -473,4 +473,4 @@ and validate _produce_output _mode ~send ~count code model_type
   if _produce_output then
     send (iopub_success ~count output) ;
   display_and_return ~send ~count bigraphs reaction_rules dirname
-    code_filename image_filename model_type _mode process_status
+    image_filename model_type _mode process_status
