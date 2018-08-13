@@ -42,6 +42,7 @@ let ppf = formatter_of_buffer ocaml_buffer
 let bigrapher_buffer = Buffer.create 256
  (* needed for truncating the buffer when interrupted *)
 let code_length = ref 0
+let count_global = ref 0
 
 (* Remove code from the last cell from the buffer *)
 let truncate_buffer () =
@@ -49,6 +50,10 @@ let truncate_buffer () =
   let new_length = Buffer.length bigrapher_buffer - !code_length in
   Buffer.truncate bigrapher_buffer new_length ;
   code_length := 0
+
+let safe_remove () =
+  try Sys.remove (Printf.sprintf "[%d].big" !count_global)
+  with _ -> ()
 
 (** {2 Initialization} *)
 
@@ -109,6 +114,7 @@ let iopub_success ?metadata ~count msg =
 
 let iopub_interrupt () =
   truncate_buffer () ;
+  safe_remove () ;
   Iopub.error ~name:"interrupt" ~value:"intterupt" [
     sprintf "%sException: Sys.Break.%s"
       AnsiCode.FG.red AnsiCode.reset
@@ -321,10 +327,6 @@ let write_code_to_file count contents =
   close_out channel ;
   filename
 
-let safe_remove filename =
-  try Sys.remove filename
-  with _ -> ()
-
 (* Does the text start with the pattern (a smaller string)? *)
 let starts_with text pattern =
   let pattern_length = String.length pattern in
@@ -360,11 +362,11 @@ let display_and_return ~send ~count bigraphs reaction_rules dirname
         |> ignore
     end ;
     if model_type <> Incomplete then truncate_buffer () ;
-    safe_remove code_filename ;
+    safe_remove () ;
     Shell.SHELL_OK
   | _ ->
     truncate_buffer () ;
-    safe_remove code_filename ;
+    safe_remove () ;
     Shell.SHELL_ERROR
 
 (* Evaluate a given code block, sending/displaying any results and returning a
@@ -449,6 +451,7 @@ and generate_state_diagram _produce_output _mode error_ctx_size ~send ~count
 
 and validate _produce_output _mode ~send ~count code model_type
     lines =
+  count_global := count ;
   let dirname = prepare_directory_for_cell "jupyter-images" 0o700 count in
   let bigraphs = list_defined_entities "big" lines @
                  list_defined_entities "fun big" lines in
