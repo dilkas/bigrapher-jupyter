@@ -31,7 +31,6 @@ depends: [
   "cryptokit" {>= "1.12"}
   "dune" {build & >= "1.0.0"}
   "bigrapher"
-  "bisect_ppx"
 ]
 depopts: [
   "merlin"

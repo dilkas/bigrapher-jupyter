@@ -18,12 +18,11 @@ In order to use BigraphER Jupyter, you must first [install BigraphER](http://www
 ``` console
 $ pip install jupyter
 $ opam pin add jupyter https://github.com/dilkas/bigrapher-jupyter.git
-$ opam install jupyter
-$ opam install jupyter-archimedes  # Jupyter-friendly 2D plotting library
-$ jupyter kernelspec install --name ocaml-jupyter "$(opam config var share)/jupyter"
+$ opam pin add jupyter-archimedes https://github.com/dilkas/bigrapher-jupyter.git
+# jupyter kernelspec install --name ocaml-jupyter "$(opam config var share)/jupyter"
 ```
 
-To enable syntax highlighting, copy over `big.js` to `/usr/lib/python3.6/site-packages/notebook/static/components/codemirror/mode/big/` (create the last directory, if needed). Similarly, to enable mouseover preview of bigraphs in state diagrams, copy the `custom/` directory over to `~/.jupyter/`. Finally, in order to use the BigraphER API in OCaml code, two lines must be added to `~/.ocamlinit`:
+To enable syntax highlighting, copy `big.js` over to `/usr/lib/python3.7/site-packages/notebook/static/components/codemirror/mode/big/` (create the last directory, if needed). Note: your Python version might be different from 3.7, and, depending on the version, `site-packages` might be called `dist-packages`. Similarly, to enable mouseover preview of bigraphs in state diagrams, copy `custom.js` over to `~/.jupyter/custom/`. Finally, in order to use the BigraphER API in OCaml code, two lines must be added to `~/.ocamlinit`:
 
 ```
 #use "topfind";;
