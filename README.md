@@ -13,6 +13,8 @@ A BigraphER kernel for [Jupyter notebooks][jupyter] based on the [OCaml kernel](
 
 ## Getting started
 
+### Manual installation
+
 In order to use BigraphER Jupyter, you must first [install BigraphER](http://www.dcs.gla.ac.uk/~michele/bigrapher.html). Then run:
 
 ``` console
@@ -34,6 +36,28 @@ To enable syntax highlighting, copy `big.js` over to `/usr/lib/python3.7/site-pa
 ```console
 $ jupyter notebook
 ```
+
+### Docker image
+
+Alternatively, one can download and run a Docker image. Once you have Docker installed, run
+
+```console
+# docker pull dilkas/bigrapher-jupyter
+```
+
+to download the image and
+
+```console
+# docker run -it -p 8888:8888 dilkas/bigrapher-jupyter
+```
+
+to start the Jupyter server. You can then use a web browser to visit `localhost:8888` and enter the password `big`. You will then be presented with an example notebook. In order to access directories on your file system, the image should be run as
+
+```console
+# docker run -it -p 8888:8888 -v local_path:/home/big/mounted dilkas/bigrapher-jupyter
+```
+
+Then the local directory `local_path` can be accessed as `~/mounted` through the Jupyter web interface. Note that `local_path` must be an absolute path.
 
 ## Usage
 
